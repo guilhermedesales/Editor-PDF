@@ -1,10 +1,9 @@
-// Registro dos PDFs "conhecidos" pelo app: os gerados via Preencher
-// Template (ver TemplateFillScreen) mais quaisquer arquivos importados
-// manualmente. É deliberadamente simples — só metadado + favorito —
-// porque o conteúdo real do PDF já vive em disco (Paths.cache/document);
-// aqui a gente só guarda o caminho e informações de exibição.
+// Camada de persistência dos arquivos PDF conhecidos pelo app (gerados
+// pelas ferramentas ou importados manualmente). Segue o mesmo padrão
+// do templateStorage.ts: metadados no AsyncStorage, arquivo real em disco.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { File } from 'expo-file-system';
 
 const STORAGE_KEY = '@editorpdf:pdf_files';
 
@@ -14,8 +13,8 @@ export interface PdfFileEntry {
   uri: string;
   size: number;
   pages?: number;
+  favorite?: boolean;
   thumbnailUri?: string;
-  favorite: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -25,28 +24,57 @@ export async function getAllPdfFiles(): Promise<PdfFileEntry[]> {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     return JSON.parse(raw) as PdfFileEntry[];
-  } catch {
+  } catch (err) {
+    console.warn('[pdfFilesStorage] Storage corrompido, resetando:', err);
+    try {
+      await AsyncStorage.removeItem(STORAGE_KEY);
+    } catch {
+      // se nem isso funcionar, não tem mais o que fazer por aqui
+    }
     return [];
   }
 }
 
-export async function registerPdfFile(entry: Omit<PdfFileEntry, 'favorite'>): Promise<void> {
+export async function registerPdfFile(entry: PdfFileEntry): Promise<void> {
   const files = await getAllPdfFiles();
   const index = files.findIndex((f) => f.id === entry.id);
-  const toSave: PdfFileEntry = { ...entry, favorite: index >= 0 ? files[index].favorite : false };
-  if (index >= 0) files[index] = toSave;
-  else files.push(toSave);
+
+  if (index >= 0) {
+    files[index] = { ...files[index], ...entry };
+  } else {
+    files.push(entry);
+  }
+
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(files));
 }
 
 export async function toggleFavoritePdf(id: string): Promise<PdfFileEntry[]> {
   const files = await getAllPdfFiles();
-  const updated = files.map((f) => (f.id === id ? { ...f, favorite: !f.favorite } : f));
+  const updated = files.map((f) =>
+    f.id === id ? { ...f, favorite: !f.favorite, updatedAt: Date.now() } : f
+  );
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   return updated;
 }
 
-export async function removePdfFile(id: string): Promise<void> {
+export async function renamePdfFile(id: string, name: string): Promise<void> {
   const files = await getAllPdfFiles();
+  const updated = files.map((f) => (f.id === id ? { ...f, name, updatedAt: Date.now() } : f));
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+}
+
+export async function deletePdfFile(id: string): Promise<void> {
+  const files = await getAllPdfFiles();
+  const target = files.find((f) => f.id === id);
+
+  if (target?.uri?.startsWith('file://')) {
+    try {
+      const file = new File(target.uri);
+      if (file.exists) file.delete();
+    } catch {
+      // não crítico
+    }
+  }
+
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(files.filter((f) => f.id !== id)));
 }
