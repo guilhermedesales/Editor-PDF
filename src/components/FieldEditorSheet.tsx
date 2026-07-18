@@ -120,23 +120,23 @@ export default function FieldEditorSheet({
             </Pressable>
           </View>
 
-          <Text style={styles.sectionLabel}>Alinhamento</Text>
-          <View style={styles.row}>
-            {ALIGN_OPTIONS.map((opt) => (
-              <Pressable
-                key={opt.value}
-                style={[styles.pill, field.style.align === opt.value && styles.pillActive]}
-                onPress={() => onUpdateStyle({ align: opt.value })}
-              >
-                <Text
-                  style={[
-                    styles.pillText,
-                    field.style.align === opt.value && styles.pillTextActive,
-                  ]}
+            <Text style={styles.sectionLabel}>Alinhamento</Text>
+            <View style={styles.row}>
+            {[
+                { value: 'left' as const, Icon: AlignLeft },
+                { value: 'center' as const, Icon: AlignCenter },
+                { value: 'right' as const, Icon: AlignRight },
+            ].map(({ value, Icon }) => (
+                <Pressable
+                key={value}
+                style={[styles.pill, field.style.align === value && styles.pillActive]}
+                onPress={() => onUpdateStyle({ align: value })}
                 >
-                  {opt.label}
-                </Text>
-              </Pressable>
+                <Icon
+                    size={18}
+                    color={field.style.align === value ? colors.white : colors.neutral}
+                />
+                </Pressable>
             ))}
           </View>
 
