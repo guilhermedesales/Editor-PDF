@@ -15,10 +15,11 @@ import {
 import { useThemeStore } from '../store/useThemeStore';
 import { spacing, radius, typography } from '../constants/theme';
 import {
-  getAllPdfFiles, toggleFavoritePdf, renamePdfFile, deletePdfFile, movePdfToFolder, type PdfFileEntry,
+  getAllPdfFiles, toggleFavoritePdf, renamePdfFile, deletePdfFile, movePdfToFolder,
+  clearFolderFromFiles, type PdfFileEntry,
 } from '../services/pdfFilesStorage';
 import {
-  getAllFolders, createFolder, updateFolder, deleteFolder, clearFolderFromFiles, type PdfFolderEntry,
+  getAllFolders, createFolder, updateFolder, deleteFolder, type PdfFolderEntry,
 } from '../services/pdfFoldersStorage';
 import { pickAndImportPdf } from '../services/pdfFileIO';
 import FolderEditorModal, { FOLDER_ICON_MAP } from '../components/FolderEditorModal';

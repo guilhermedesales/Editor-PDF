@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, Alert, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Plus, X, FileImage } from 'lucide-react-native';
+import { ArrowLeft, Plus, X, FileImage, Pencil, RotateCw } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as Sharing from 'expo-sharing';
 import { PDFDocument } from 'pdf-lib';
 import { File } from 'expo-file-system';
 import { useThemeStore } from '../store/useThemeStore';
 import { spacing, radius, typography } from '../constants/theme';
 import { saveGeneratedPdf } from '../services/pdfFileIO';
+import ImageEditModal from '../components/ImageEditModal';
 
 interface PickedImage { uri: string; type: 'jpeg' | 'png'; }
 
@@ -17,6 +19,8 @@ export default function ConvertToPdfScreen({ navigation }: any) {
   const { colors } = useThemeStore();
   const [images, setImages] = useState<PickedImage[]>([]);
   const [working, setWorking] = useState(false);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [rotatingIndex, setRotatingIndex] = useState<number | null>(null);
 
   async function handleAdd() {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -31,6 +35,27 @@ export default function ConvertToPdfScreen({ navigation }: any) {
 
   function removeImage(index: number) {
     setImages((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function handleQuickRotate(index: number) {
+    setRotatingIndex(index);
+    try {
+      const target = images[index];
+      const result = await ImageManipulator.manipulateAsync(target.uri, [{ rotate: 90 }], {
+        compress: 0.92, format: ImageManipulator.SaveFormat.JPEG,
+      });
+      setImages((prev) => prev.map((img, i) => (i === index ? { uri: result.uri, type: 'jpeg' } : img)));
+    } catch (err: any) {
+      Alert.alert('Erro ao girar imagem', String(err?.message ?? err));
+    } finally {
+      setRotatingIndex(null);
+    }
+  }
+
+  function handleEditSaved(newUri: string) {
+    if (editingIndex === null) return;
+    setImages((prev) => prev.map((img, i) => (i === editingIndex ? { uri: newUri, type: 'jpeg' } : img)));
+    setEditingIndex(null);
   }
 
   async function handleConvert() {
@@ -73,7 +98,7 @@ export default function ConvertToPdfScreen({ navigation }: any) {
       </View>
 
       <Text style={[styles.hint, { color: colors.secondary }]}>
-        Por enquanto, esta ferramenta converte fotos e imagens em PDF (cada imagem vira uma página). Conversão de arquivos do Office chega em uma próxima versão.
+        Toque numa imagem pra recortar ou girar antes de gerar o PDF. Cada imagem vira uma página.
       </Text>
 
       <FlatList
@@ -89,12 +114,28 @@ export default function ConvertToPdfScreen({ navigation }: any) {
           </View>
         }
         renderItem={({ item, index }) => (
-          <View style={styles.thumbWrap}>
+          <Pressable style={styles.thumbWrap} onPress={() => setEditingIndex(index)}>
             <Image source={{ uri: item.uri }} style={styles.thumb} />
-            <Pressable style={styles.removeBadge} onPress={() => removeImage(index)}>
+
+            {rotatingIndex === index && (
+              <View style={styles.thumbLoadingOverlay}>
+                <ActivityIndicator color="#fff" size="small" />
+              </View>
+            )}
+
+            <Pressable style={styles.removeBadge} onPress={(e) => { e.stopPropagation(); removeImage(index); }}>
               <X size={12} color="#fff" />
             </Pressable>
-          </View>
+            <Pressable style={styles.rotateBadge} onPress={(e) => { e.stopPropagation(); handleQuickRotate(index); }}>
+              <RotateCw size={12} color="#fff" />
+            </Pressable>
+            <View style={styles.editBadge}>
+              <Pencil size={11} color="#fff" />
+            </View>
+            <View style={styles.pageBadge}>
+              <Text style={styles.pageBadgeText}>{index + 1}</Text>
+            </View>
+          </Pressable>
         )}
       />
 
@@ -111,6 +152,13 @@ export default function ConvertToPdfScreen({ navigation }: any) {
           {working ? <ActivityIndicator color={colors.white} /> : <Text style={styles.actionButtonText}>Converter e Compartilhar</Text>}
         </Pressable>
       </View>
+
+      <ImageEditModal
+        visible={editingIndex !== null}
+        uri={editingIndex !== null ? images[editingIndex]?.uri ?? null : null}
+        onClose={() => setEditingIndex(null)}
+        onSave={handleEditSaved}
+      />
     </View>
   );
 }
@@ -124,7 +172,12 @@ const styles = StyleSheet.create({
   emptyText: { textAlign: 'center', fontSize: typography.label },
   thumbWrap: { width: 100, height: 100, borderRadius: radius.sm, overflow: 'hidden', position: 'relative' },
   thumb: { width: '100%', height: '100%' },
+  thumbLoadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)', alignItems: 'center', justifyContent: 'center' },
   removeBadge: { position: 'absolute', top: 4, right: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  rotateBadge: { position: 'absolute', top: 4, left: 4, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  editBadge: { position: 'absolute', bottom: 4, right: 4, width: 18, height: 18, borderRadius: 9, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  pageBadge: { position: 'absolute', bottom: 4, left: 4, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  pageBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
   footer: { padding: spacing.md, borderTopWidth: 1, gap: spacing.sm },
   addButton: { flexDirection: 'row', gap: spacing.xs, borderWidth: 1.5, borderRadius: radius.md, paddingVertical: spacing.sm, alignItems: 'center', justifyContent: 'center' },
   addButtonText: { fontWeight: '700' },
