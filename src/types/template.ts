@@ -30,19 +30,22 @@ export interface FieldStyle {
   align: 'left' | 'center' | 'right';
 }
 
-// Configuração específica de campos de data. Permite criar campos
-// "fatiados" — ex: 3 campos separados pra "Rio de Janeiro, __ de
-// _______ de 2026", um só com dia, outro só com mês (por extenso),
-// outro só com ano (automático).
 export interface DateConfig {
-  parts: Array<'dia' | 'mes' | 'ano'>; // quais partes esse campo representa
-  monthFormat: 'numero' | 'nome' | 'abreviado'; // só relevante se 'mes' estiver em parts
-  auto: boolean; // se true, usa a data atual em vez de pedir input
+  parts: Array<'dia' | 'mes' | 'ano'>;
+  monthFormat: 'numero' | 'nome' | 'abreviado';
+  auto: boolean;
 }
 
-// Configuração específica de campos do tipo 'valor'.
 export interface ValorConfig {
-  showSymbol: boolean; // se true, mostra "R$" antes do número
+  showSymbol: boolean;
+}
+
+// Configuração de numeração automática: quantos dígitos (1 = "1", "2",
+// 2 = "01", "02", 4 = "0001", "0002"...) e a partir de qual número
+// começar a contagem.
+export interface AutoIncrementConfig {
+  digits: number;
+  startAt: number;
 }
 
 export interface TemplateField {
@@ -54,11 +57,10 @@ export interface TemplateField {
   required: boolean;
   placeholder?: string;
   maxLines?: number;
-  dateConfig?: DateConfig; // só usado quando type === 'data'
-  valorConfig?: ValorConfig; // só usado quando type === 'valor'
-  // quando type === 'valorPorExtenso', pode "puxar" o valor de outro
-  // campo do tipo 'valor' em vez de pedir input próprio
+  dateConfig?: DateConfig;
+  valorConfig?: ValorConfig;
   linkedValorFieldId?: string | null;
+  autoIncrementConfig?: AutoIncrementConfig;
 }
 
 export interface Template {
@@ -70,7 +72,7 @@ export interface Template {
   fields: TemplateField[];
   createdAt: number;
   updatedAt: number;
-  autoIncrementCounter?: number;
+  autoIncrementCounter?: number; // próximo número "cru" (sem formatação) a usar
 }
 
 export interface TemplateFillData {

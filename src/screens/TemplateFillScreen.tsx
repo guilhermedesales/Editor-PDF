@@ -17,6 +17,7 @@ import { currencyToWords, plainNumberToWords } from '../utils/numberToWords';
 import { applyMaskFor, maskFullDate, maskDayOrMonth, maskYear } from '../utils/masks';
 import { DEFAULT_DATE_CONFIG, formatDateValue, placeholderForDateConfig } from '../utils/dateFormat';
 import type { Template, TemplateField } from '../types/template';
+import { DEFAULT_AUTO_INCREMENT_CONFIG, formatAutoIncrement, nextAutoIncrementNumber } from '../utils/autoIncrement';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -120,10 +121,13 @@ export default function TemplateFillScreen({ route, navigation }: any) {
 
   useEffect(() => {
     if (!template) return;
-    const nextNumber = (template.autoIncrementCounter ?? 0) + 1;
     const autoValues: Record<string, string> = {};
     template.fields.forEach((f) => {
-      if (f.type === 'autoIncremento') autoValues[f.id] = String(nextNumber);
+      if (f.type === 'autoIncremento') {
+        const config = f.autoIncrementConfig ?? DEFAULT_AUTO_INCREMENT_CONFIG;
+        const nextRaw = nextAutoIncrementNumber(template, config);
+        autoValues[f.id] = formatAutoIncrement(nextRaw, config);
+      }
     });
     if (Object.keys(autoValues).length > 0) {
       setValues((prev) => ({ ...autoValues, ...prev }));
@@ -168,9 +172,12 @@ export default function TemplateFillScreen({ route, navigation }: any) {
 
       const hasAutoIncrement = template!.fields.some((f) => f.type === 'autoIncremento');
       if (hasAutoIncrement) {
+        const autoField = template!.fields.find((f) => f.type === 'autoIncremento')!;
+        const config = autoField.autoIncrementConfig ?? DEFAULT_AUTO_INCREMENT_CONFIG;
+        const usedRaw = nextAutoIncrementNumber(template!, config);
         await saveTemplate({
           ...template!,
-          autoIncrementCounter: (template!.autoIncrementCounter ?? 0) + 1,
+          autoIncrementCounter: usedRaw + 1,
           updatedAt: Date.now(),
         });
       }

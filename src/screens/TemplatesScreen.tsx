@@ -1,11 +1,12 @@
-// Aba "Templates": busca + lista de templates salvos, com thumbnail
-// real do PDF, badge de contagem de campos e menu de ações por card.
+// Aba "Templates": busca + lista de templates salvos. Cada card tem
+// duas zonas de toque: o corpo (nome + thumbnail) leva para Preencher;
+// uma pequena seção à direita com ícone de lápis leva para Editar.
 
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Image, TextInput } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FileText, Plus, MoreVertical, Search, ChevronRight } from 'lucide-react-native';
+import { FileText, Plus, Pencil, Search } from 'lucide-react-native';
 import { colors, spacing, radius, typography } from '../constants/theme';
 import { getAllTemplates } from '../services/templateStorage';
 import type { Template } from '../types/template';
@@ -41,9 +42,7 @@ export default function TemplatesScreen({ navigation }: any) {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <View style={styles.headerIconWrap}>
-          <FileText size={18} color={colors.white} />
-        </View>
+        <View style={styles.headerIconWrap}><FileText size={18} color={colors.white} /></View>
         <Text style={styles.headerTitle}>Templates</Text>
       </View>
 
@@ -68,7 +67,6 @@ export default function TemplatesScreen({ navigation }: any) {
               <Plus size={20} color={colors.white} />
               <Text style={styles.newButtonText}>Novo Template</Text>
             </Pressable>
-
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Meus Templates</Text>
               {filtered.length > 0 && <Text style={styles.sectionCount}>{filtered.length}</Text>}
@@ -77,15 +75,9 @@ export default function TemplatesScreen({ navigation }: any) {
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <View style={styles.emptyIconWrap}>
-              <FileText size={28} color={colors.secondary} />
-            </View>
-            <Text style={styles.emptyTitle}>
-              {query ? 'Nenhum resultado' : 'Nenhum template ainda'}
-            </Text>
-            <Text style={styles.emptyText}>
-              {query ? 'Tente buscar por outro nome.' : 'Toque em "Novo Template" para criar o primeiro.'}
-            </Text>
+            <View style={styles.emptyIconWrap}><FileText size={28} color={colors.secondary} /></View>
+            <Text style={styles.emptyTitle}>{query ? 'Nenhum resultado' : 'Nenhum template ainda'}</Text>
+            <Text style={styles.emptyText}>{query ? 'Tente buscar por outro nome.' : 'Toque em "Novo Template" para criar o primeiro.'}</Text>
           </View>
         }
         renderItem={({ item }) => (
@@ -102,28 +94,30 @@ export default function TemplatesScreen({ navigation }: any) {
 
 function TemplateCard({ template, onEdit, onFill }: { template: Template; onEdit: () => void; onFill: () => void }) {
   return (
-    <Pressable style={styles.card} onPress={onFill}>
-      <View style={styles.thumbWrap}>
-        {template.pdfUri ? (
-          <Image source={{ uri: template.pdfUri }} style={styles.thumbImage} resizeMode="cover" />
-        ) : (
-          <FileText size={24} color={colors.primary} />
-        )}
-      </View>
-
-      <View style={styles.cardBody}>
-        <Text style={styles.cardTitle} numberOfLines={1}>{template.name}</Text>
-        <View style={styles.cardMetaRow}>
-          <Text style={styles.cardMetaField}>{template.fields.length} campos</Text>
-          <Text style={styles.cardMetaDot}>·</Text>
-          <Text style={styles.cardMetaTime}>{formatRelativeTime(template.updatedAt)}</Text>
+    <View style={styles.card}>
+      <Pressable style={styles.cardMain} onPress={onFill}>
+        <View style={styles.thumbWrap}>
+          {template.pdfUri ? (
+            <Image source={{ uri: template.pdfUri }} style={styles.thumbImage} resizeMode="cover" />
+          ) : (
+            <FileText size={24} color={colors.primary} />
+          )}
         </View>
-      </View>
-
-      <Pressable hitSlop={10} style={styles.cardMenu} onPress={onEdit}>
-        <MoreVertical size={18} color={colors.secondary} />
+        <View style={styles.cardBody}>
+          <Text style={styles.cardTitle} numberOfLines={1}>{template.name}</Text>
+          <View style={styles.cardMetaRow}>
+            <Text style={styles.cardMetaField}>{template.fields.length} campos</Text>
+            <Text style={styles.cardMetaDot}>·</Text>
+            <Text style={styles.cardMetaTime}>{formatRelativeTime(template.updatedAt)}</Text>
+          </View>
+        </View>
       </Pressable>
-    </Pressable>
+
+      <Pressable style={styles.editZone} onPress={onEdit}>
+        <Pencil size={16} color={colors.primary} />
+        <Text style={styles.editZoneText}>Editar</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -154,9 +148,10 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: typography.body, fontWeight: '700', color: colors.neutral, marginBottom: spacing.xs },
   emptyText: { color: colors.secondary, textAlign: 'center', fontSize: typography.label },
   card: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: colors.tertiary,
-    borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.sm,
+    flexDirection: 'row', backgroundColor: colors.tertiary, borderRadius: radius.md,
+    marginBottom: spacing.sm, overflow: 'hidden',
   },
+  cardMain: { flex: 1, flexDirection: 'row', alignItems: 'center', padding: spacing.sm },
   thumbWrap: {
     width: 52, height: 52, borderRadius: radius.sm, backgroundColor: colors.primaryLight,
     alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: spacing.sm,
@@ -168,5 +163,9 @@ const styles = StyleSheet.create({
   cardMetaField: { fontSize: typography.label, color: colors.primary, fontWeight: '600' },
   cardMetaDot: { fontSize: typography.label, color: colors.secondary },
   cardMetaTime: { fontSize: typography.label, color: colors.secondary },
-  cardMenu: { padding: 6 },
+  editZone: {
+    width: 64, alignItems: 'center', justifyContent: 'center', gap: 4,
+    backgroundColor: colors.primaryLight, borderLeftWidth: 1, borderLeftColor: colors.border,
+  },
+  editZoneText: { fontSize: 11, fontWeight: '700', color: colors.primary },
 });

@@ -1,22 +1,30 @@
 // Representa um campo desenhado sobre a imagem do PDF durante a
 // configuração do template (Modo 1).
 //
-// Indicador retangular (sem pill/oval) — borderRadius fixo e pequeno.
-// Toque simples no campo NÃO selecionado: seleciona. Toque no campo JÁ
-// selecionado: abre direto o editor (sem precisar de ícone de lápis).
+// O comportamento do toque/arrasto depende da ferramenta ativa (prop
+// `tool`), escolhida na barra lateral direita:
+// - 'move': só arrasta (mover). Toque simples não faz nada.
+// - 'resize': toque seleciona (mostra as 4 bolinhas); arrastar as
+//   bolinhas redimensiona. Arrastar o corpo do campo NÃO move.
+// - 'edit': toque abre direto o editor de propriedades.
+// - 'delete': toque exclui direto o campo.
 
 import React, { useRef, useState, useEffect } from 'react';
 import { StyleSheet, Text, View, PanResponder } from 'react-native';
 import { colors } from '../constants/theme';
 import type { TemplateField } from '../types/template';
 
+export type FieldTool = 'move' | 'resize' | 'edit' | 'delete';
+
 interface Props {
   field: TemplateField;
   scale: number;
   zoomScale: number;
   selected: boolean;
+  tool: FieldTool;
   onSelect: () => void;
   onEdit: () => void;
+  onDelete: () => void;
   onMove: (dx: number, dy: number) => void;
   onResize: (dw: number, dh: number, dx: number, dy: number) => void;
 }
@@ -27,23 +35,23 @@ const MIN_WIDTH = 40;
 const MIN_HEIGHT = 16;
 const TAP_MAX_MOVEMENT = 6;
 const HANDLE_SIZE = 20;
-const FIELD_RADIUS = 4; // fixo e pequeno — evita o efeito "pill"/oval
+const FIELD_RADIUS = 4;
 
 export default function FieldOverlay(props: Props) {
-  const { field, scale, zoomScale, selected, onSelect, onEdit, onMove, onResize } = props;
+  const { field, scale, zoomScale, selected, tool, onSelect, onEdit, onDelete, onMove, onResize } = props;
 
   const fieldRef = useRef(field);
   const scaleRef = useRef(scale);
   const zoomScaleRef = useRef(zoomScale);
-  const selectedRef = useRef(selected);
-  const callbacksRef = useRef({ onSelect, onEdit, onMove, onResize });
+  const toolRef = useRef(tool);
+  const callbacksRef = useRef({ onSelect, onEdit, onDelete, onMove, onResize });
 
   useEffect(() => {
     fieldRef.current = field;
     scaleRef.current = scale;
     zoomScaleRef.current = zoomScale;
-    selectedRef.current = selected;
-    callbacksRef.current = { onSelect, onEdit, onMove, onResize };
+    toolRef.current = tool;
+    callbacksRef.current = { onSelect, onEdit, onDelete, onMove, onResize };
   });
 
   const [drag, setDrag] = useState<{ mode: Mode; dx: number; dy: number } | null>(null);
@@ -51,16 +59,16 @@ export default function FieldOverlay(props: Props) {
   function commit(mode: Mode, dxScreen: number, dyScreen: number) {
     const f = fieldRef.current;
     const effectiveScale = scaleRef.current * zoomScaleRef.current;
-    const { onSelect, onEdit, onMove, onResize } = callbacksRef.current;
+    const { onSelect, onMove, onResize } = callbacksRef.current;
 
     if (mode === 'move') {
       const movedEnough =
         Math.abs(dxScreen) > TAP_MAX_MOVEMENT || Math.abs(dyScreen) > TAP_MAX_MOVEMENT;
       if (movedEnough) {
         onMove(dxScreen / effectiveScale, dyScreen / effectiveScale);
-      } else {
-        if (selectedRef.current) onEdit();
-        else onSelect();
+      } else if (toolRef.current === 'resize') {
+        // no modo resize, um toque simples apenas seleciona (mostra as bolinhas)
+        onSelect();
       }
       setDrag(null);
       return;
@@ -70,19 +78,10 @@ export default function FieldOverlay(props: Props) {
     const dyPoints = dyScreen / effectiveScale;
     let dw = 0;
     let dh = 0;
-    if (mode === 'br') {
-      dw = dxPoints;
-      dh = dyPoints;
-    } else if (mode === 'bl') {
-      dw = -dxPoints;
-      dh = dyPoints;
-    } else if (mode === 'tr') {
-      dw = dxPoints;
-      dh = -dyPoints;
-    } else if (mode === 'tl') {
-      dw = -dxPoints;
-      dh = -dyPoints;
-    }
+    if (mode === 'br') { dw = dxPoints; dh = dyPoints; }
+    else if (mode === 'bl') { dw = -dxPoints; dh = dyPoints; }
+    else if (mode === 'tr') { dw = dxPoints; dh = -dyPoints; }
+    else if (mode === 'tl') { dw = -dxPoints; dh = -dyPoints; }
 
     const newWidth = Math.max(f.position.width + dw, MIN_WIDTH);
     const newHeight = Math.max(f.position.height + dh, MIN_HEIGHT);
@@ -101,20 +100,50 @@ export default function FieldOverlay(props: Props) {
   function useGestureResponder(mode: Mode) {
     return useRef(
       PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
+        onStartShouldSetPanResponder: () => {
+          const t = toolRef.current;
+          if (mode === 'move') return t === 'move' || t === 'resize' || t === 'edit' || t === 'delete';
+          return t === 'resize';
+        },
         onStartShouldSetPanResponderCapture: () => mode !== 'move',
-        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2,
+        onMoveShouldSetPanResponder: (_e, g) => {
+          const t = toolRef.current;
+          const moved = Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2;
+          if (mode === 'move') return t === 'move' && moved;
+          return t === 'resize' && moved;
+        },
         onMoveShouldSetPanResponderCapture: (_e, g) =>
-          mode !== 'move' && (Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2),
+          mode !== 'move' && toolRef.current === 'resize' && (Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2),
         onPanResponderTerminationRequest: () => false,
 
+        onPanResponderGrant: () => {
+          // toque simples (sem arrasto) — trata edit/delete/select aqui,
+          // já que o START pode não disparar MOVE algum
+        },
         onPanResponderMove: (_e, g) => {
           setDrag({ mode, dx: g.dx / (zoomScaleRef.current || 1), dy: g.dy / (zoomScaleRef.current || 1) });
         },
-        onPanResponderRelease: (_e, g) => commit(mode, g.dx, g.dy),
+        onPanResponderRelease: (_e, g) => {
+          const moved = Math.abs(g.dx) > TAP_MAX_MOVEMENT || Math.abs(g.dy) > TAP_MAX_MOVEMENT;
+          if (mode === 'move' && !moved) {
+            handleTap();
+            setDrag(null);
+            return;
+          }
+          commit(mode, g.dx, g.dy);
+        },
         onPanResponderTerminate: (_e, g) => commit(mode, g.dx, g.dy),
       })
     ).current;
+  }
+
+  function handleTap() {
+    const t = toolRef.current;
+    const { onEdit, onDelete, onSelect } = callbacksRef.current;
+    if (t === 'edit') onEdit();
+    else if (t === 'delete') onDelete();
+    else if (t === 'resize') onSelect();
+    // no modo 'move', toque simples não faz nada (só arrasto)
   }
 
   const moveResponder = useGestureResponder('move');
@@ -163,6 +192,7 @@ export default function FieldOverlay(props: Props) {
 
   const handleVisualSize = HANDLE_SIZE / safeZoom;
   const handleHalf = handleVisualSize / 2;
+  const showHandles = tool === 'resize' && selected;
 
   return (
     <React.Fragment>
@@ -171,10 +201,7 @@ export default function FieldOverlay(props: Props) {
         style={[
           styles.field,
           {
-            left,
-            top,
-            width,
-            height,
+            left, top, width, height,
             borderColor: selected ? colors.primary : colors.primaryLight,
             backgroundColor: selected ? 'rgba(37, 99, 235, 0.14)' : 'rgba(37, 99, 235, 0.08)',
           },
@@ -197,7 +224,7 @@ export default function FieldOverlay(props: Props) {
         </Text>
       </View>
 
-      {selected &&
+      {showHandles &&
         (
           [
             { mode: 'tl' as Mode, responder: tlResponder, top: -handleHalf, left: -handleHalf },

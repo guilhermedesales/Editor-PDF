@@ -1,7 +1,4 @@
 // Modal de edição de um campo já posicionado no template.
-// Layout reorganizado: header fixo, corpo com scroll, card de
-// "Tipografia" destacado (fundo cinza claro, como no mockup),
-// prévia real do texto formatado, e ações fixas no rodapé.
 
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView } from 'react-native';
@@ -9,11 +6,13 @@ import { colors, spacing, radius, typography } from '../constants/theme';
 import { FIELD_TYPE_OPTIONS } from '../constants/fieldTypes';
 import { DEFAULT_DATE_CONFIG, formatDateValue } from '../utils/dateFormat';
 import { currencyToWords, plainNumberToWords } from '../utils/numberToWords';
-import type { TemplateField, FieldType, DateConfig } from '../types/template';
+import { DEFAULT_AUTO_INCREMENT_CONFIG, formatAutoIncrement } from '../utils/autoIncrement';
+import type { TemplateField, FieldType, DateConfig, AutoIncrementConfig } from '../types/template';
 import { Trash2, Copy, AlignLeft, AlignCenter, AlignRight, Check, ChevronDown, X } from 'lucide-react-native';
 
 const COLOR_OPTIONS = ['#1C1B1B', '#2563EB', '#DC2626', '#059669', '#D97706', '#7C3AED'];
 const FONT_OPTIONS = ['Inter', 'System', 'Times New Roman', 'Courier New'];
+const DIGIT_OPTIONS = [1, 2, 3, 4, 5];
 
 interface Props {
   visible: boolean;
@@ -43,7 +42,10 @@ function samplePreview(field: TemplateField, allFields: TemplateField[]): string
       return currencyToWords('150,00');
     }
     case 'numeroPorExtenso': return plainNumberToWords('10');
-    case 'autoIncremento': return '001';
+    case 'autoIncremento': {
+      const cfg = field.autoIncrementConfig ?? DEFAULT_AUTO_INCREMENT_CONFIG;
+      return formatAutoIncrement(cfg.startAt, cfg);
+    }
     case 'data': {
       const cfg = field.dateConfig ?? DEFAULT_DATE_CONFIG;
       if (cfg.auto) return formatDateValue(cfg, '');
@@ -59,17 +61,7 @@ function samplePreview(field: TemplateField, allFields: TemplateField[]): string
   }
 }
 
-function Dropdown({
-  value,
-  onPress,
-  open,
-  children,
-}: {
-  value: string;
-  onPress: () => void;
-  open: boolean;
-  children?: React.ReactNode;
-}) {
+function Dropdown({ value, onPress, open, children }: { value: string; onPress: () => void; open: boolean; children?: React.ReactNode }) {
   return (
     <View>
       <Pressable style={styles.dropdown} onPress={onPress}>
@@ -92,6 +84,7 @@ export default function FieldEditorSheet({
 
   const typeLabel = FIELD_TYPE_OPTIONS.find((opt) => opt.type === field.type)?.label ?? field.type;
   const dateConfig = field.dateConfig ?? DEFAULT_DATE_CONFIG;
+  const autoConfig = field.autoIncrementConfig ?? DEFAULT_AUTO_INCREMENT_CONFIG;
 
   function adjustFontSize(delta: number) {
     const current = field!.style.fontSize ?? 12;
@@ -100,6 +93,10 @@ export default function FieldEditorSheet({
 
   function updateDateConfig(partial: Partial<DateConfig>) {
     onUpdate({ dateConfig: { ...dateConfig, ...partial } });
+  }
+
+  function updateAutoConfig(partial: Partial<AutoIncrementConfig>) {
+    onUpdate({ autoIncrementConfig: { ...autoConfig, ...partial } });
   }
 
   const valorFieldsAvailable = allFields.filter((f) => f.type === 'valor' && f.id !== field.id);
@@ -148,6 +145,36 @@ export default function FieldEditorSheet({
                   <View style={[styles.checkbox, (field.valorConfig?.showSymbol ?? true) && styles.checkboxChecked]} />
                   <Text style={styles.checkboxText}>Mostrar símbolo "R$"</Text>
                 </Pressable>
+              </View>
+            )}
+
+            {field.type === 'autoIncremento' && (
+              <View style={styles.configBox}>
+                <Text style={styles.configLabel}>Quantidade de dígitos</Text>
+                <View style={styles.rowWrap}>
+                  {DIGIT_OPTIONS.map((d) => (
+                    <Pressable
+                      key={d}
+                      style={[styles.pill, autoConfig.digits === d && styles.pillActive]}
+                      onPress={() => updateAutoConfig({ digits: d })}
+                    >
+                      <Text style={[styles.pillText, autoConfig.digits === d && styles.pillTextActive]}>
+                        {formatAutoIncrement(1, { digits: d, startAt: 1 })}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                <Text style={[styles.configLabel, { marginTop: spacing.sm }]}>Começar a contar em</Text>
+                <TextInput
+                  style={styles.input}
+                  keyboardType="numeric"
+                  value={String(autoConfig.startAt)}
+                  onChangeText={(t) => {
+                    const n = parseInt(t.replace(/\D/g, ''), 10);
+                    updateAutoConfig({ startAt: isNaN(n) ? 1 : Math.max(n, 0) });
+                  }}
+                />
               </View>
             )}
 
@@ -239,7 +266,6 @@ export default function FieldEditorSheet({
               <Text style={styles.requiredText}>Campo obrigatório</Text>
             </Pressable>
 
-            {/* --- Card de Tipografia (destacado, como no mockup) --- */}
             <View style={styles.typographyCard}>
               <Text style={styles.typographyTitle}>Tipografia</Text>
 
@@ -338,10 +364,10 @@ export default function FieldEditorSheet({
 
           <View style={styles.actionsRow}>
             <Pressable style={styles.duplicateButton} onPress={onDuplicate}>
-              <Copy size={18} color={colors.neutral} />
+              <Copy size={20} color={colors.neutral} />
             </Pressable>
             <Pressable style={styles.deleteButton} onPress={onDelete}>
-              <Trash2 size={18} color={colors.danger} />
+              <Trash2 size={20} color={colors.danger} />
             </Pressable>
             <Pressable style={styles.doneButton} onPress={onClose}>
               <Text style={styles.doneButtonText}>Salvar</Text>
@@ -428,8 +454,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', gap: spacing.sm, paddingVertical: spacing.md,
     borderTopWidth: 1, borderTopColor: colors.border,
   },
-  duplicateButton: { width: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  deleteButton: { width: 48, borderRadius: radius.md, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
-  doneButton: { flex: 1, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
+  duplicateButton: { width: 52, height: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  deleteButton: { width: 52, height: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
+  doneButton: { flex: 1, height: 52, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   doneButtonText: { color: colors.white, fontWeight: '700', fontSize: typography.body },
 });
