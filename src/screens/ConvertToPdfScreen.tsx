@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList, Alert, ActivityIndicator, Image } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Plus, X, FileImage, Pencil, RotateCw } from 'lucide-react-native';
+import { ArrowLeft, Plus, X, FileImage, Pencil, RotateCw, Eye } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Sharing from 'expo-sharing';
@@ -11,16 +11,31 @@ import { useThemeStore } from '../store/useThemeStore';
 import { spacing, radius, typography } from '../constants/theme';
 import { saveGeneratedPdf } from '../services/pdfFileIO';
 import ImageEditModal from '../components/ImageEditModal';
+import MergePreviewModal from '../components/MergePreviewModal';
 
 interface PickedImage { uri: string; type: 'jpeg' | 'png'; }
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
+}
 
 export default function ConvertToPdfScreen({ navigation }: any) {
   const insets = useSafeAreaInsets();
   const { colors } = useThemeStore();
   const [images, setImages] = useState<PickedImage[]>([]);
-  const [working, setWorking] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [rotatingIndex, setRotatingIndex] = useState<number | null>(null);
+
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewBase64, setPreviewBase64] = useState<string | null>(null);
+  const [generatedBytesCache, setGeneratedBytesCache] = useState<Uint8Array | null>(null);
+  const [buildingPreview, setBuildingPreview] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   async function handleAdd() {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -58,32 +73,51 @@ export default function ConvertToPdfScreen({ navigation }: any) {
     setEditingIndex(null);
   }
 
-  async function handleConvert() {
+  async function buildPdfBytes(): Promise<Uint8Array> {
+    const pdfDoc = await PDFDocument.create();
+    for (const img of images) {
+      const bytes = await new File(img.uri).bytes();
+      const embedded = img.type === 'png' ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
+      const page = pdfDoc.addPage([embedded.width, embedded.height]);
+      page.drawImage(embedded, { x: 0, y: 0, width: embedded.width, height: embedded.height });
+    }
+    return pdfDoc.save();
+  }
+
+  async function handleOpenPreview() {
     if (images.length === 0) {
       Alert.alert('Adicione ao menos uma imagem');
       return;
     }
-    setWorking(true);
+    setShowPreview(true);
+    setBuildingPreview(true);
+    setPreviewBase64(null);
     try {
-      const pdfDoc = await PDFDocument.create();
-      for (const img of images) {
-        const bytes = await new File(img.uri).bytes();
-        const embedded = img.type === 'png' ? await pdfDoc.embedPng(bytes) : await pdfDoc.embedJpg(bytes);
-        const page = pdfDoc.addPage([embedded.width, embedded.height]);
-        page.drawImage(embedded, { x: 0, y: 0, width: embedded.width, height: embedded.height });
-      }
-      const pdfBytes = await pdfDoc.save();
-      const { uri } = await saveGeneratedPdf(pdfBytes, `Imagens_para_PDF_${Date.now()}`);
+      const pdfBytes = await buildPdfBytes();
+      setGeneratedBytesCache(pdfBytes);
+      setPreviewBase64(bytesToBase64(pdfBytes));
+    } catch (err: any) {
+      Alert.alert('Erro ao montar prévia', String(err?.message ?? err));
+      setShowPreview(false);
+    } finally {
+      setBuildingPreview(false);
+    }
+  }
 
+  async function handleConfirmShare(fileName: string) {
+    if (!generatedBytesCache) return;
+    setSharing(true);
+    try {
+      const { uri } = await saveGeneratedPdf(generatedBytesCache, fileName);
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Compartilhar PDF' });
       else Alert.alert('PDF gerado', `Salvo em: ${uri}`);
-
+      setShowPreview(false);
       navigation.goBack();
     } catch (err: any) {
       Alert.alert('Erro ao converter', String(err?.message ?? err));
     } finally {
-      setWorking(false);
+      setSharing(false);
     }
   }
 
@@ -94,7 +128,14 @@ export default function ConvertToPdfScreen({ navigation }: any) {
           <ArrowLeft size={22} color={colors.neutral} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.neutral }]}>Converter para PDF</Text>
-        <View style={{ width: 22 }} />
+        {images.length > 0 ? (
+          <Pressable style={styles.previewLink} onPress={handleOpenPreview}>
+            <Eye size={14} color={colors.primary} />
+            <Text style={[styles.previewLinkText, { color: colors.primary }]}>Prévia</Text>
+          </Pressable>
+        ) : (
+          <View style={{ width: 22 }} />
+        )}
       </View>
 
       <Text style={[styles.hint, { color: colors.secondary }]}>
@@ -144,12 +185,8 @@ export default function ConvertToPdfScreen({ navigation }: any) {
           <Plus size={18} color={colors.primary} />
           <Text style={[styles.addButtonText, { color: colors.primary }]}>Adicionar Imagens</Text>
         </Pressable>
-        <Pressable
-          style={[styles.actionButton, { backgroundColor: colors.primary, opacity: working ? 0.6 : 1 }]}
-          onPress={handleConvert}
-          disabled={working}
-        >
-          {working ? <ActivityIndicator color={colors.white} /> : <Text style={styles.actionButtonText}>Converter e Compartilhar</Text>}
+        <Pressable style={[styles.actionButton, { backgroundColor: colors.primary }]} onPress={handleOpenPreview}>
+          <Text style={styles.actionButtonText}>Pré-visualizar e Converter</Text>
         </Pressable>
       </View>
 
@@ -159,6 +196,15 @@ export default function ConvertToPdfScreen({ navigation }: any) {
         onClose={() => setEditingIndex(null)}
         onSave={handleEditSaved}
       />
+
+      <MergePreviewModal
+        visible={showPreview}
+        base64Pdf={buildingPreview ? null : previewBase64}
+        defaultName={`Imagens_para_PDF_${Date.now()}`}
+        onClose={() => setShowPreview(false)}
+        onConfirm={handleConfirmShare}
+        sharing={sharing}
+      />
     </View>
   );
 }
@@ -167,6 +213,8 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   headerTitle: { fontSize: typography.body, fontWeight: '700' },
+  previewLink: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  previewLinkText: { fontSize: 13, fontWeight: '700' },
   hint: { fontSize: 12, paddingHorizontal: spacing.md, marginBottom: spacing.xs },
   emptyState: { alignItems: 'center', paddingVertical: spacing.xl, gap: spacing.sm, width: '100%' },
   emptyText: { textAlign: 'center', fontSize: typography.label },

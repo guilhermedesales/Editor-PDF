@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "EditorPDF",
-    "slug": "EditorPDF",
+    "name": "PDF Studio",
+    "slug": "PDF-Studio",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },

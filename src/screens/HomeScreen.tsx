@@ -59,8 +59,7 @@ export default function HomeScreen({ navigation }: any) {
       </View>
 
       <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: spacing.xl }}>
-        <Text style={[styles.greeting, { color: colors.neutral }]}>Olá 👋</Text>
-        <Text style={[styles.subGreeting, { color: colors.secondary }]}>O que vamos criar hoje?</Text>
+    
 
         <Text style={[styles.sectionLabel, { color: colors.secondary }]}>AÇÕES RÁPIDAS</Text>
         <View style={styles.grid}>
