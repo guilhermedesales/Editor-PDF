@@ -1,6 +1,7 @@
 // Camada de persistência dos arquivos PDF conhecidos pelo app (gerados
 // pelas ferramentas ou importados manualmente). Segue o mesmo padrão
 // do templateStorage.ts: metadados no AsyncStorage, arquivo real em disco.
+// Cada arquivo pode pertencer a uma pasta (folderId), ver pdfFoldersStorage.ts.
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { File } from 'expo-file-system';
@@ -15,6 +16,7 @@ export interface PdfFileEntry {
   pages?: number;
   favorite?: boolean;
   thumbnailUri?: string;
+  folderId?: string | null;
   createdAt: number;
   updatedAt: number;
 }
@@ -60,6 +62,20 @@ export async function toggleFavoritePdf(id: string): Promise<PdfFileEntry[]> {
 export async function renamePdfFile(id: string, name: string): Promise<void> {
   const files = await getAllPdfFiles();
   const updated = files.map((f) => (f.id === id ? { ...f, name, updatedAt: Date.now() } : f));
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+}
+
+export async function movePdfToFolder(id: string, folderId: string | null): Promise<PdfFileEntry[]> {
+  const files = await getAllPdfFiles();
+  const updated = files.map((f) => (f.id === id ? { ...f, folderId, updatedAt: Date.now() } : f));
+  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+  return updated;
+}
+
+// Ao excluir uma pasta, os arquivos dela voltam pra raiz (não são apagados).
+export async function clearFolderFromFiles(folderId: string): Promise<void> {
+  const files = await getAllPdfFiles();
+  const updated = files.map((f) => (f.folderId === folderId ? { ...f, folderId: null } : f));
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 }
 
