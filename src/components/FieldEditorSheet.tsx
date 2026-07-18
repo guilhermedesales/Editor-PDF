@@ -7,6 +7,7 @@ import { View, Text, StyleSheet, Modal, Pressable, TextInput } from 'react-nativ
 import { colors, spacing, radius, typography } from '../constants/theme';
 import { FIELD_TYPE_OPTIONS } from '../constants/fieldTypes';
 import type { TemplateField } from '../types/template';
+import { Trash2, AlignLeft, AlignCenter, AlignRight, Check } from 'lucide-react-native';
 
 const COLOR_OPTIONS = [
   '#1C1B1B',
@@ -15,12 +16,6 @@ const COLOR_OPTIONS = [
   '#059669',
   '#D97706',
   '#7C3AED',
-];
-
-const ALIGN_OPTIONS: { value: TemplateField['style']['align']; label: string }[] = [
-  { value: 'left', label: 'Esquerda' },
-  { value: 'center', label: 'Centro' },
-  { value: 'right', label: 'Direita' },
 ];
 
 interface Props {
@@ -138,11 +133,12 @@ export default function FieldEditorSheet({
                 />
                 </Pressable>
             ))}
-          </View>
+            </View>
 
-          <Pressable style={styles.deleteButton} onPress={onDelete}>
-            <Text style={styles.deleteButtonText}>Excluir Campo</Text>
-          </Pressable>
+            <Pressable style={styles.deleteButton} onPress={onDelete}>
+                <Trash2 size={16} color={colors.danger} />
+                <Text style={styles.deleteButtonText}>Excluir Campo</Text>
+            </Pressable>
 
           <Pressable style={styles.doneButton} onPress={onClose}>
             <Text style={styles.doneButtonText}>Concluir</Text>
@@ -268,7 +264,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.danger,
     alignItems: 'center',
-  },
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: spacing.xs,
+    },
   deleteButtonText: {
     color: colors.danger,
     fontWeight: '600',

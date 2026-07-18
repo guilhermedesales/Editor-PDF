@@ -1,19 +1,13 @@
-import 'react-native-gesture-handler'; // precisa ser o 1º import do
-                                        // arquivo de entrada, senão os
-                                        // gestos quebram silenciosamente
 import React from 'react';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import RootNavigator from './src/navigation/RootNavigator';
 
 export default function App() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <StatusBar style="dark" />
-        <RootNavigator />
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <SafeAreaProvider>
+      <StatusBar style="dark" />
+      <RootNavigator />
+    </SafeAreaProvider>
   );
 }

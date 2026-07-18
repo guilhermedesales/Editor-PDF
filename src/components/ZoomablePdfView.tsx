@@ -1,22 +1,12 @@
 // Container que permite dar zoom (pinça com 2 dedos) e arrastar
-// (2 dedos) o conteúdo dentro dele — no caso, a página do PDF com os
-// campos por cima.
+// (2 dedos) o conteúdo dentro dele.
 //
-// Por que não usar o ScrollView.maximumZoomScale? Porque esse recurso
-// só funciona no iOS — no Android o pinch-to-zoom do ScrollView nunca
-// foi implementado nativamente. Por isso usamos os gesture handlers.
-//
-// Por que exigir 2 dedos pro pan (minPointers=2)? Porque 1 dedo já é
-// usado pelo FieldOverlay pra mover/redimensionar os campos individuais
-// — se o pan daqui aceitasse 1 dedo, os dois gestos brigariam.
+// Implementado com PanResponder + Animated (API nativa do React Native),
+// sem depender de react-native-gesture-handler nem react-native-reanimated.
+// Isso evita a exigência de módulos nativos que não funcionam no Expo Go.
 
-import React, { useRef, useState } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
-import {
-  PanGestureHandler,
-  PinchGestureHandler,
-  State,
-} from 'react-native-gesture-handler';
+import React, { useRef } from 'react';
+import { StyleSheet, View, PanResponder, Animated } from 'react-native';
 
 const MIN_SCALE = 1;
 const MAX_SCALE = 4;
@@ -26,109 +16,122 @@ interface Props {
   onScaleChange?: (scale: number) => void;
 }
 
+function getDistance(touches: any[]) {
+  const [a, b] = touches;
+  const dx = a.pageX - b.pageX;
+  const dy = a.pageY - b.pageY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getMidpoint(touches: any[]) {
+  const [a, b] = touches;
+  return {
+    x: (a.pageX + b.pageX) / 2,
+    y: (a.pageY + b.pageY) / 2,
+  };
+}
+
 export default function ZoomablePdfView({ children, onScaleChange }: Props) {
-  const pinchRef = useRef(null);
-  const panRef = useRef(null);
+  const scale = useRef(new Animated.Value(1)).current;
+  const translateX = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(0)).current;
 
-  // "base" = valor consolidado depois que o gesto anterior terminou.
-  // O Animated.Value correspondente representa só o delta do gesto
-  // ATUAL, em andamento — os dois são somados/multiplicados no
-  // transform final, lá embaixo.
-  const [baseScale, setBaseScale] = useState(1);
-  const pinchScale = useRef(new Animated.Value(1)).current;
+  const currentScale = useRef(1);
+  const savedScale = useRef(1);
+  const currentTranslateX = useRef(0);
+  const currentTranslateY = useRef(0);
+  const savedTranslateX = useRef(0);
+  const savedTranslateY = useRef(0);
 
-  const [baseTranslate, setBaseTranslate] = useState({ x: 0, y: 0 });
-  const panTranslate = useRef(new Animated.ValueXY()).current;
+  const initialDistance = useRef(0);
+  const initialMidpoint = useRef({ x: 0, y: 0 });
 
-  const onPinchGestureEvent = Animated.event(
-    [{ nativeEvent: { scale: pinchScale } }],
-    { useNativeDriver: true }
+  // Precisamos ouvir os valores animados pra saber o total acumulado,
+  // já que Animated.Value não expõe o valor atual diretamente.
+  useRef(
+    scale.addListener(({ value }) => {
+      currentScale.current = value;
+    })
+  );
+  useRef(
+    translateX.addListener(({ value }) => {
+      currentTranslateX.current = value;
+    })
+  );
+  useRef(
+    translateY.addListener(({ value }) => {
+      currentTranslateY.current = value;
+    })
   );
 
-  const onPanGestureEvent = Animated.event(
-    [
-      {
-        nativeEvent: {
-          translationX: panTranslate.x,
-          translationY: panTranslate.y,
-        },
+  const panResponder = useRef(
+    PanResponder.create({
+        onStartShouldSetPanResponder: (evt) => evt.nativeEvent.touches.length === 2,
+        onStartShouldSetPanResponderCapture: () => false, // não captura antes dos filhos decidirem
+        onMoveShouldSetPanResponder: (evt) => evt.nativeEvent.touches.length === 2,
+        onMoveShouldSetPanResponderCapture: () => false,
+
+      onPanResponderGrant: (evt) => {
+        const touches = evt.nativeEvent.touches;
+        if (touches.length === 2) {
+          initialDistance.current = getDistance(touches);
+          initialMidpoint.current = getMidpoint(touches);
+          savedScale.current = currentScale.current;
+          savedTranslateX.current = currentTranslateX.current;
+          savedTranslateY.current = currentTranslateY.current;
+        }
       },
-    ],
-    { useNativeDriver: true }
-  );
 
-  function onPinchStateChange(event: any) {
-    if (event.nativeEvent.oldState === State.ACTIVE) {
-      const next = Math.min(
-        Math.max(baseScale * event.nativeEvent.scale, MIN_SCALE),
-        MAX_SCALE
-      );
-      setBaseScale(next);
-      pinchScale.setValue(1);
-      onScaleChange?.(next);
-    }
-  }
+      onPanResponderMove: (evt) => {
+        const touches = evt.nativeEvent.touches;
+        if (touches.length !== 2) return;
 
-  function onPanStateChange(event: any) {
-    if (event.nativeEvent.oldState === State.ACTIVE) {
-      setBaseTranslate((prev) => ({
-        x: prev.x + event.nativeEvent.translationX,
-        y: prev.y + event.nativeEvent.translationY,
-      }));
-      panTranslate.setValue({ x: 0, y: 0 });
-    }
-  }
+        // Pinça -> escala
+        const distance = getDistance(touches);
+        const rawScale = savedScale.current * (distance / initialDistance.current);
+        const nextScale = Math.min(Math.max(rawScale, MIN_SCALE), MAX_SCALE);
+        scale.setValue(nextScale);
 
-  // Toque duplo com 2 dedos rápido pra resetar zoom/posição — útil
-  // porque não tem outro jeito óbvio de "voltar ao normal".
-  function handleReset() {
-    setBaseScale(1);
-    setBaseTranslate({ x: 0, y: 0 });
-    pinchScale.setValue(1);
-    panTranslate.setValue({ x: 0, y: 0 });
-  }
+        // Deslocamento dos 2 dedos -> translate
+        const midpoint = getMidpoint(touches);
+        const dx = midpoint.x - initialMidpoint.current.x;
+        const dy = midpoint.y - initialMidpoint.current.y;
+        translateX.setValue(savedTranslateX.current + dx);
+        translateY.setValue(savedTranslateY.current + dy);
+      },
 
-  const scale = Animated.multiply(pinchScale, baseScale);
-  const translateX = Animated.add(panTranslate.x, baseTranslate.x);
-  const translateY = Animated.add(panTranslate.y, baseTranslate.y);
+      onPanResponderRelease: () => {
+        savedScale.current = currentScale.current;
+        savedTranslateX.current = currentTranslateX.current;
+        savedTranslateY.current = currentTranslateY.current;
+        onScaleChange?.(currentScale.current);
+      },
+
+      onPanResponderTerminate: () => {
+        savedScale.current = currentScale.current;
+        savedTranslateX.current = currentTranslateX.current;
+        savedTranslateY.current = currentTranslateY.current;
+        onScaleChange?.(currentScale.current);
+      },
+    })
+  ).current;
 
   return (
-    <View style={styles.container}>
-      <PanGestureHandler
-        ref={panRef}
-        simultaneousHandlers={pinchRef}
-        minPointers={2}
-        maxPointers={2}
-        onGestureEvent={onPanGestureEvent}
-        onHandlerStateChange={onPanStateChange}
+    <View style={styles.container} {...panResponder.panHandlers}>
+      <Animated.View
+        style={[
+          styles.content,
+          {
+            transform: [
+              { translateX },
+              { translateY },
+              { scale },
+            ],
+          },
+        ]}
       >
-        <Animated.View style={StyleSheet.absoluteFill}>
-          <PinchGestureHandler
-            ref={pinchRef}
-            simultaneousHandlers={panRef}
-            onGestureEvent={onPinchGestureEvent}
-            onHandlerStateChange={onPinchStateChange}
-          >
-            <Animated.View
-              style={[
-                styles.content,
-                {
-                  transform: [{ translateX }, { translateY }, { scale }],
-                },
-              ]}
-              onTouchEnd={(e) => {
-                if (e.nativeEvent.touches.length === 0 && baseScale === 1) {
-                  // nada a fazer — só aqui pra deixar claro que reset
-                  // manual fica disponível via handleReset() se algum
-                  // botão futuro quiser chamá-lo.
-                }
-              }}
-            >
-              {children}
-            </Animated.View>
-          </PinchGestureHandler>
-        </Animated.View>
-      </PanGestureHandler>
+        {children}
+      </Animated.View>
     </View>
   );
 }

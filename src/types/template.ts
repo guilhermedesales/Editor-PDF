@@ -9,6 +9,8 @@ export type FieldType =
   | 'numero'
   | 'valor'
   | 'valorPorExtenso'
+  | 'numeroPorExtenso'
+  | 'autoIncremento'
   | 'data'
   | 'hora'
   | 'cpf'
@@ -61,6 +63,8 @@ export interface Template {
   fields: TemplateField[];
   createdAt: number;
   updatedAt: number;
+  autoIncrementCounter?: number; // próximo número a ser usado pelos
+                                  // campos do tipo 'autoIncremento'
 }
 
 // Estrutura salva quando o usuário PREENCHE um template (não é o template

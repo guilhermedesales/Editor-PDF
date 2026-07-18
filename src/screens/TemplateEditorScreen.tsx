@@ -9,7 +9,6 @@ import {
   Image,
   Dimensions,
   Modal,
-  FlatList,
   TextInput,
   Alert,
 } from 'react-native';
@@ -22,9 +21,10 @@ import PdfPageRasterizer from '../components/PdfPageRasterizer';
 import FieldOverlay from '../components/FieldOverlay';
 import FieldEditorSheet from '../components/FieldEditorSheet';
 import ZoomablePdfView from '../components/ZoomablePdfView';
-import { FIELD_TYPE_OPTIONS } from '../constants/fieldTypes';
+import FieldTypePicker from '../components/FieldTypePicker';
 import { saveTemplate, getTemplateById } from '../services/templateStorage';
 import type { FieldType, TemplateField } from '../types/template';
+import { Plus, ChevronLeft, FileText } from 'lucide-react-native';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -47,7 +47,7 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
     setTemplateName,
     addField,
     updateField,
-    deleteField, // precisa existir no store — ver instruções abaixo
+    deleteField,
     selectField,
     loadFromTemplate,
     reset,
@@ -136,10 +136,18 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
     });
   }
 
-  function handleResizeField(field: TemplateField, dw: number, dh: number) {
+  function handleResizeField(
+    field: TemplateField,
+    dw: number,
+    dh: number,
+    dx: number,
+    dy: number
+  ) {
     updateField(field.id, {
       position: {
         ...field.position,
+        x: field.position.x + dx,
+        y: field.position.y + dy,
         width: field.position.width + dw,
         height: field.position.height + dh,
       },
@@ -209,15 +217,32 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
       )}
 
       {!renderedImage ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>Criação de Template</Text>
-          <Text style={styles.emptySubtitle}>
-            Escolha um PDF para criar um template.
-          </Text>
-          <Pressable style={styles.pickButton} onPress={handlePickFile}>
-            <Text style={styles.pickButtonText}>Selecionar Arquivo</Text>
-          </Pressable>
-        </View>
+        <>
+          <View style={styles.toolbarMinimal}>
+            <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
+              <ChevronLeft size={22} color={colors.primary} />
+            </Pressable>
+            <Text style={styles.toolbarMinimalTitle}>PDF Architect</Text>
+            <View style={{ width: 22 }} />
+          </View>
+
+          <View style={styles.emptyState}>
+            <View style={styles.emptyCard}>
+              <FileText size={36} color={colors.primary} />
+              <View style={styles.emptyCardBadge}>
+                <Plus size={14} color={colors.white} />
+              </View>
+            </View>
+            <Text style={styles.emptyTitle}>Criação de Template</Text>
+            <Text style={styles.emptySubtitle}>
+              Escolha um PDF para criar um template.
+            </Text>
+            <Pressable style={styles.pickButton} onPress={handlePickFile}>
+              <Text style={styles.pickButtonText}>Selecionar Arquivo</Text>
+            </Pressable>
+            <Text style={styles.emptyHint}>Formatos suportados: .pdf (Máx. 10MB)</Text>
+          </View>
+        </>
       ) : (
         <>
           <View style={styles.toolbar}>
@@ -244,50 +269,31 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
               />
               {fields.map((field) => (
                 <FieldOverlay
-                  key={field.id}
-                  field={field}
-                  scale={scale}
-                  zoomScale={zoomScale}
-                  selected={selectedFieldId === field.id}
-                  onSelect={() => handleSelectField(field.id)}
-                  onEdit={() => handleEditField(field.id)}
-                  onDelete={() => handleDeleteField(field.id)}
-                  onMove={(dx, dy) => handleMoveField(field, dx, dy)}
-                  onResize={(dw, dh) => handleResizeField(field, dw, dh)}
+                    key={field.id}
+                    field={field}
+                    scale={scale}
+                    zoomScale={zoomScale}
+                    selected={selectedFieldId === field.id}
+                    onSelect={() => handleSelectField(field.id)}
+                    onEdit={() => handleEditField(field.id)}
+                    onMove={(dx, dy) => handleMoveField(field, dx, dy)}
+                    onResize={(dw, dh, dx, dy) => handleResizeField(field, dw, dh, dx, dy)}
                 />
               ))}
             </View>
           </ZoomablePdfView>
 
-          <Pressable style={styles.fab} onPress={() => setShowTypeModal(true)}>
-            <Text style={styles.fabText}>+</Text>
-          </Pressable>
+            <Pressable style={styles.fab} onPress={() => setShowTypeModal(true)}>
+                <Plus size={28} color={colors.white} />
+            </Pressable>
         </>
       )}
 
-      <Modal visible={showTypeModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Adicionar Campo</Text>
-            <FlatList
-              data={FIELD_TYPE_OPTIONS}
-              numColumns={2}
-              keyExtractor={(item) => item.type}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={styles.typeOption}
-                  onPress={() => handleAddFieldType(item.type)}
-                >
-                  <Text style={styles.typeOptionText}>{item.label}</Text>
-                </Pressable>
-              )}
-            />
-            <Pressable onPress={() => setShowTypeModal(false)}>
-              <Text style={styles.modalCancel}>Cancelar</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      <FieldTypePicker
+        visible={showTypeModal}
+        onClose={() => setShowTypeModal(false)}
+        onSelect={handleAddFieldType}
+      />
 
       <Modal visible={showNameModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -332,11 +338,45 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
+  toolbarMinimal: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  toolbarMinimalTitle: {
+    fontSize: typography.body,
+    fontWeight: '700',
+    color: colors.primary,
+  },
   emptyState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
+  },
+  emptyCard: {
+    width: 96,
+    height: 96,
+    borderRadius: radius.lg,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+  },
+  emptyCardBadge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.white,
   },
   emptyTitle: {
     fontSize: typography.headline * 0.6,
@@ -349,6 +389,11 @@ const styles = StyleSheet.create({
     color: colors.secondary,
     marginBottom: spacing.lg,
     textAlign: 'center',
+  },
+  emptyHint: {
+    fontSize: typography.label,
+    color: colors.secondary,
+    marginTop: spacing.sm,
   },
   pickButton: {
     backgroundColor: colors.primary,
@@ -389,7 +434,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 4,
   },
-  fabText: { color: colors.white, fontSize: 28, fontWeight: '400', lineHeight: 30 },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -406,21 +450,6 @@ const styles = StyleSheet.create({
     fontSize: typography.body,
     fontWeight: '700',
     marginBottom: spacing.md,
-  },
-  typeOption: {
-    flex: 1,
-    margin: spacing.xs,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.tertiary,
-    alignItems: 'center',
-  },
-  typeOptionText: { fontWeight: '600', color: colors.neutral },
-  modalCancel: {
-    textAlign: 'center',
-    color: colors.secondary,
-    marginTop: spacing.sm,
-    paddingVertical: spacing.sm,
   },
   nameInput: {
     borderWidth: 1,

@@ -3,6 +3,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer } from '@react-navigation/native';
 import HomeScreen from '../screens/HomeScreen';
 import TemplateEditorScreen from '../screens/TemplateEditorScreen';
+import TemplateFillScreen from '../screens/TemplateFillScreen';
 import { colors } from '../constants/theme';
 
 export type RootStackParamList = {
@@ -26,6 +27,11 @@ export default function RootNavigator() {
         <Stack.Screen
           name="TemplateEditor"
           component={TemplateEditorScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="TemplateFill"
+          component={TemplateFillScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
