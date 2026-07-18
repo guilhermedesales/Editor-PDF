@@ -7,7 +7,7 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { spacing, radius, typography, colors } from '../constants/theme';
+import { spacing, radius, typography } from '../constants/theme';
 import { useThemeStore } from '../store/useThemeStore';
 import { useEditorStore } from '../store/useEditorstorage';
 import PdfPageRasterizer from '../components/PdfPageRasterizer';
@@ -164,7 +164,7 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
   const selectedField = fields.find((f) => f.id === selectedFieldId) ?? null;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       {pdfBase64 && !renderedImage && (
         <PdfPageRasterizer base64Pdf={pdfBase64} onRendered={handleRendered} onError={(msg) => Alert.alert('Erro ao processar PDF', msg)} />
       )}
@@ -175,41 +175,43 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
             <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
               <ChevronLeft size={22} color={colors.primary} />
             </Pressable>
-            <Text style={styles.toolbarMinimalTitle}>PDF Architect</Text>
+            <Text style={[styles.toolbarMinimalTitle, { color: colors.primary }]}>PDF Architect</Text>
             <View style={{ width: 22 }} />
           </View>
           <View style={styles.emptyState}>
-            <View style={styles.emptyCard}>
+            <View style={[styles.emptyCard, { backgroundColor: colors.primaryLight }]}>
               <FileText size={36} color={colors.primary} />
-              <View style={styles.emptyCardBadge}><Plus size={14} color={colors.white} /></View>
+              <View style={[styles.emptyCardBadge, { backgroundColor: colors.primary, borderColor: colors.background }]}>
+                <Plus size={14} color="#fff" />
+              </View>
             </View>
-            <Text style={styles.emptyTitle}>Criação de Template</Text>
-            <Text style={styles.emptySubtitle}>Escolha um PDF para criar um template.</Text>
-            <Pressable style={styles.pickButton} onPress={handlePickFile}>
+            <Text style={[styles.emptyTitle, { color: colors.neutral }]}>Criação de Template</Text>
+            <Text style={[styles.emptySubtitle, { color: colors.secondary }]}>Escolha um PDF para criar um template.</Text>
+            <Pressable style={[styles.pickButton, { backgroundColor: colors.primary }]} onPress={handlePickFile}>
               <Text style={styles.pickButtonText}>Selecionar Arquivo</Text>
             </Pressable>
-            <Text style={styles.emptyHint}>Formatos suportados: .pdf (Máx. 10MB)</Text>
+            <Text style={[styles.emptyHint, { color: colors.secondary }]}>Formatos suportados: .pdf (Máx. 10MB)</Text>
           </View>
         </>
       ) : (
         <>
-          <View style={styles.toolbar}>
+          <View style={[styles.toolbar, { borderBottomColor: colors.border }]}>
             <Pressable onPress={() => navigation.goBack()}>
-              <Text style={styles.toolbarAction}>Cancelar</Text>
+              <Text style={[styles.toolbarAction, { color: colors.secondary }]}>Cancelar</Text>
             </Pressable>
             <Pressable style={styles.titlePressable} onPress={() => setShowNameModal(true)}>
-              <Text style={styles.toolbarTitle} numberOfLines={1}>{templateName || 'Novo Template'}</Text>
+              <Text style={[styles.toolbarTitle, { color: colors.neutral }]} numberOfLines={1}>{templateName || 'Novo Template'}</Text>
               <Pencil size={13} color={colors.secondary} />
             </Pressable>
             <Pressable onPress={handleSave}>
-              <Text style={[styles.toolbarAction, styles.toolbarSave]}>Salvar</Text>
+              <Text style={[styles.toolbarAction, styles.toolbarSave, { color: colors.primary }]}>Salvar</Text>
             </Pressable>
           </View>
 
           <View style={styles.previewButtonRow}>
-            <Pressable style={styles.previewButton} onPress={() => setShowPreview(true)}>
+            <Pressable style={[styles.previewButton, { backgroundColor: colors.primaryLight }]} onPress={() => setShowPreview(true)}>
               <Eye size={16} color={colors.primary} />
-              <Text style={styles.previewButtonText}>Ver Prévia</Text>
+              <Text style={[styles.previewButtonText, { color: colors.primary }]}>Ver Prévia</Text>
             </Pressable>
           </View>
 
@@ -250,11 +252,18 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
 
       <Modal visible={showNameModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Nome do Template</Text>
-            <TextInput autoFocus placeholder="Ex: Recibo Consulta" style={styles.nameInput} onChangeText={setTemplateName} value={templateName} />
+          <View style={[styles.modalSheet, { backgroundColor: colors.white }]}>
+            <Text style={[styles.modalTitle, { color: colors.neutral }]}>Nome do Template</Text>
+            <TextInput
+              autoFocus
+              placeholder="Ex: Recibo Consulta"
+              placeholderTextColor={colors.secondary}
+              style={[styles.nameInput, { borderColor: colors.border, color: colors.neutral }]}
+              onChangeText={setTemplateName}
+              value={templateName}
+            />
             <Pressable
-              style={styles.pickButton}
+              style={[styles.pickButton, { backgroundColor: colors.primary }]}
               onPress={() => {
                 setShowNameModal(false);
                 if (templateName.trim() && renderedImage) handleSave();
@@ -292,34 +301,34 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.white },
+  container: { flex: 1 },
   toolbarMinimal: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  toolbarMinimalTitle: { fontSize: typography.body, fontWeight: '700', color: colors.primary },
+  toolbarMinimalTitle: { fontSize: typography.body, fontWeight: '700' },
   emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg },
-  emptyCard: { width: 96, height: 96, borderRadius: radius.lg, backgroundColor: colors.primaryLight, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg },
-  emptyCardBadge: { position: 'absolute', bottom: -4, right: -4, width: 26, height: 26, borderRadius: 13, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: colors.white },
-  emptyTitle: { fontSize: typography.headline * 0.6, fontWeight: '700', color: colors.neutral, marginBottom: spacing.xs },
-  emptySubtitle: { fontSize: typography.body, color: colors.secondary, marginBottom: spacing.lg, textAlign: 'center' },
-  emptyHint: { fontSize: typography.label, color: colors.secondary, marginTop: spacing.sm },
-  pickButton: { backgroundColor: colors.primary, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderRadius: radius.md },
-  pickButtonText: { color: colors.white, fontWeight: '600' },
+  emptyCard: { width: 96, height: 96, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg },
+  emptyCardBadge: { position: 'absolute', bottom: -4, right: -4, width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', borderWidth: 2 },
+  emptyTitle: { fontSize: typography.headline * 0.6, fontWeight: '700', marginBottom: spacing.xs },
+  emptySubtitle: { fontSize: typography.body, marginBottom: spacing.lg, textAlign: 'center' },
+  emptyHint: { fontSize: typography.label, marginTop: spacing.sm },
+  pickButton: { paddingVertical: spacing.md, paddingHorizontal: spacing.lg, borderRadius: radius.md },
+  pickButtonText: { color: '#fff', fontWeight: '600' },
   toolbar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border,
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1,
   },
-  toolbarAction: { fontSize: typography.body, color: colors.secondary },
-  toolbarSave: { color: colors.primary, fontWeight: '700' },
+  toolbarAction: { fontSize: typography.body },
+  toolbarSave: { fontWeight: '700' },
   titlePressable: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center' },
   toolbarTitle: { fontSize: typography.body, fontWeight: '600', maxWidth: 180 },
   previewButtonRow: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, alignItems: 'flex-start' },
   previewButton: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.primaryLight,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
     paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radius.full,
   },
-  previewButtonText: { color: colors.primary, fontWeight: '700', fontSize: typography.label },
+  previewButtonText: { fontWeight: '700', fontSize: typography.label },
   pageWrapper: { alignItems: 'center', justifyContent: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md, maxHeight: '70%' },
+  modalSheet: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md, maxHeight: '70%' },
   modalTitle: { fontSize: typography.body, fontWeight: '700', marginBottom: spacing.md },
-  nameInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.md },
+  nameInput: { borderWidth: 1, borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.md },
 });

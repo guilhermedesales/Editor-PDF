@@ -11,7 +11,8 @@ import { PDFDocument } from 'pdf-lib';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { ArrowLeft } from 'lucide-react-native';
-import { colors, spacing, radius, typography } from '../constants/theme';
+import { spacing, radius, typography } from '../constants/theme';
+import { useThemeStore } from '../store/useThemeStore';
 import { getTemplateById, saveTemplate } from '../services/templateStorage';
 import { currencyToWords, plainNumberToWords } from '../utils/numberToWords';
 import { applyMaskFor, maskFullDate, maskDayOrMonth, maskYear } from '../utils/masks';
@@ -99,6 +100,7 @@ function resolveFinalValue(
 export default function TemplateFillScreen({ route, navigation }: any) {
   const templateId: string = route.params.templateId;
   const insets = useSafeAreaInsets();
+  const { colors } = useThemeStore();
   const viewShotRef = useRef<ViewShot>(null);
 
   const [template, setTemplate] = useState<Template | null>(null);
@@ -136,7 +138,7 @@ export default function TemplateFillScreen({ route, navigation }: any) {
 
   if (!template) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator color={colors.primary} />
       </View>
     );
@@ -198,59 +200,64 @@ export default function TemplateFillScreen({ route, navigation }: any) {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={styles.toolbar}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
+      <View style={[styles.toolbar, { borderBottomColor: colors.border }]}>
         <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
           <ArrowLeft size={22} color={colors.neutral} />
         </Pressable>
-        <Text style={styles.toolbarTitle} numberOfLines={1}>Preencher Template</Text>
+        <Text style={[styles.toolbarTitle, { color: colors.neutral }]} numberOfLines={1}>Preencher Template</Text>
         <Pressable onPress={() => setShowNameModal(true)} disabled={generating}>
-          <Text style={[styles.toolbarAction, generating && { opacity: 0.4 }]}>Concluir</Text>
+          <Text style={[styles.toolbarAction, { color: colors.primary }, generating && { opacity: 0.4 }]}>Concluir</Text>
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
         <View style={styles.formSection}>
-          <Text style={styles.sectionTitle}>Dados do Documento</Text>
+          <Text style={[styles.sectionTitle, { color: colors.neutral }]}>Dados do Documento</Text>
           {template.fields.map((field) => {
             const isReadOnly = field.type === 'autoIncremento' || (field.type === 'data' && field.dateConfig?.auto);
             const isDerivedExtenso = field.type === 'valorPorExtenso' && !!field.linkedValorFieldId;
 
             return (
               <View key={field.id} style={styles.formField}>
-                <Text style={styles.formLabel}>
+                <Text style={[styles.formLabel, { color: colors.secondary }]}>
                   {field.internalName || 'Campo'}
-                  {field.required && <Text style={styles.required}> *</Text>}
+                  {field.required && <Text style={[styles.required, { color: colors.danger }]}> *</Text>}
                 </Text>
 
                 {isReadOnly ? (
-                  <View style={styles.autoBox}>
-                    <Text style={styles.autoValue}>
+                  <View style={[styles.autoBox, { borderColor: colors.border, backgroundColor: colors.tertiary }]}>
+                    <Text style={[styles.autoValue, { color: colors.neutral }]}>
                       {resolveFinalValue(field, values, template.fields) || (field.type === 'autoIncremento' ? values[field.id] : '')}
                     </Text>
-                    <Text style={styles.autoTag}>Automático</Text>
+                    <Text style={[styles.autoTag, { color: colors.primary, backgroundColor: colors.primaryLight }]}>Automático</Text>
                   </View>
                 ) : isDerivedExtenso ? (
-                  <View style={styles.autoBox}>
-                    <Text style={styles.autoValue} numberOfLines={2}>
+                  <View style={[styles.autoBox, { borderColor: colors.border, backgroundColor: colors.tertiary }]}>
+                    <Text style={[styles.autoValue, { color: colors.neutral }]} numberOfLines={2}>
                       {resolveFinalValue(field, values, template.fields) || 'Preencha o campo de valor vinculado'}
                     </Text>
-                    <Text style={styles.autoTag}>Vinculado</Text>
+                    <Text style={[styles.autoTag, { color: colors.primary, backgroundColor: colors.primaryLight }]}>Vinculado</Text>
                   </View>
                 ) : (
                   <>
                     <TextInput
-                      style={[styles.formInput, field.type === 'textoMultilinha' && styles.formInputMultiline]}
+                      style={[
+                        styles.formInput,
+                        { borderColor: colors.border, color: colors.neutral },
+                        field.type === 'textoMultilinha' && styles.formInputMultiline,
+                      ]}
                       value={values[field.id] ?? ''}
                       onChangeText={(t) => setValue(field.id, maskForField(field, t))}
                       placeholder={placeholderForField(field)}
+                      placeholderTextColor={colors.secondary}
                       keyboardType={keyboardTypeFor(field.type)}
                       multiline={field.type === 'textoMultilinha'}
                       numberOfLines={field.type === 'textoMultilinha' ? 4 : 1}
                     />
                     {(field.type === 'valorPorExtenso' || field.type === 'numeroPorExtenso') &&
                       !!values[field.id] && (
-                        <Text style={styles.extensoPreview} numberOfLines={2}>
+                        <Text style={[styles.extensoPreview, { color: colors.primary }]} numberOfLines={2}>
                           {resolveFinalValue(field, values, template.fields)}
                         </Text>
                       )}
@@ -261,7 +268,7 @@ export default function TemplateFillScreen({ route, navigation }: any) {
           })}
         </View>
 
-        <Text style={styles.sectionTitle}>Prévia</Text>
+        <Text style={[styles.sectionTitle, { color: colors.neutral }]}>Prévia</Text>
         <View style={styles.previewWrapper}>
           <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }} style={{ width: displayWidth, height: displayHeight }}>
             <Image source={{ uri: template.pdfUri }} style={{ width: displayWidth, height: displayHeight }} resizeMode="contain" />
@@ -294,14 +301,21 @@ export default function TemplateFillScreen({ route, navigation }: any) {
 
       <Modal visible={showNameModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Nome do Arquivo</Text>
-            <TextInput autoFocus style={styles.nameInput} value={fileName} onChangeText={setFileName} placeholder="Ex: Contrato João da Silva" />
-            <Pressable style={styles.confirmButton} onPress={handleConfirmGenerate}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.white }]}>
+            <Text style={[styles.modalTitle, { color: colors.neutral }]}>Nome do Arquivo</Text>
+            <TextInput
+              autoFocus
+              style={[styles.nameInput, { borderColor: colors.border, color: colors.neutral }]}
+              value={fileName}
+              onChangeText={setFileName}
+              placeholder="Ex: Contrato João da Silva"
+              placeholderTextColor={colors.secondary}
+            />
+            <Pressable style={[styles.confirmButton, { backgroundColor: colors.primary }]} onPress={handleConfirmGenerate}>
               <Text style={styles.confirmButtonText}>Gerar e Compartilhar</Text>
             </Pressable>
             <Pressable onPress={() => setShowNameModal(false)}>
-              <Text style={styles.modalCancel}>Cancelar</Text>
+              <Text style={[styles.modalCancel, { color: colors.secondary }]}>Cancelar</Text>
             </Pressable>
           </View>
         </View>
@@ -309,7 +323,7 @@ export default function TemplateFillScreen({ route, navigation }: any) {
 
       {generating && (
         <View style={styles.overlayLoading}>
-          <ActivityIndicator color={colors.white} size="large" />
+          <ActivityIndicator color="#fff" size="large" />
           <Text style={styles.overlayLoadingText}>Gerando PDF...</Text>
         </View>
       )}
@@ -318,44 +332,42 @@ export default function TemplateFillScreen({ route, navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.white },
+  container: { flex: 1 },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   toolbar: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-    borderBottomWidth: 1, borderBottomColor: colors.border,
+    borderBottomWidth: 1,
   },
   toolbarTitle: { fontSize: typography.body, fontWeight: '600', flex: 1, textAlign: 'center' },
-  toolbarAction: { fontSize: typography.body, color: colors.primary, fontWeight: '700' },
+  toolbarAction: { fontSize: typography.body, fontWeight: '700' },
   formSection: { paddingHorizontal: spacing.md, paddingTop: spacing.md },
   sectionTitle: {
-    fontSize: typography.body, fontWeight: '700', color: colors.neutral,
+    fontSize: typography.body, fontWeight: '700',
     marginBottom: spacing.sm, paddingHorizontal: spacing.md,
   },
   formField: { marginBottom: spacing.md },
-  formLabel: { fontSize: typography.label, fontWeight: '600', color: colors.secondary, marginBottom: spacing.xs },
-  required: { color: colors.danger },
-  formInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.sm, fontSize: typography.body },
+  formLabel: { fontSize: typography.label, fontWeight: '600', marginBottom: spacing.xs },
+  required: {},
+  formInput: { borderWidth: 1, borderRadius: radius.sm, padding: spacing.sm, fontSize: typography.body },
   formInputMultiline: { minHeight: 90, textAlignVertical: 'top' },
-  extensoPreview: { fontSize: typography.label, color: colors.primary, fontStyle: 'italic', marginTop: spacing.xs, paddingHorizontal: 2 },
+  extensoPreview: { fontSize: typography.label, fontStyle: 'italic', marginTop: spacing.xs, paddingHorizontal: 2 },
   autoBox: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.sm,
-    backgroundColor: colors.tertiary,
+    borderWidth: 1, borderRadius: radius.sm, padding: spacing.sm,
   },
-  autoValue: { fontSize: typography.body, fontWeight: '700', color: colors.neutral, flex: 1, marginRight: spacing.sm },
+  autoValue: { fontSize: typography.body, fontWeight: '700', flex: 1, marginRight: spacing.sm },
   autoTag: {
-    fontSize: 11, color: colors.primary, backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.xs, paddingVertical: 2, borderRadius: radius.full,
+    fontSize: 11, paddingHorizontal: spacing.xs, paddingVertical: 2, borderRadius: radius.full,
   },
   previewWrapper: { alignItems: 'center', paddingHorizontal: spacing.md, marginTop: spacing.sm },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalSheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md },
+  modalSheet: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md },
   modalTitle: { fontSize: typography.body, fontWeight: '700', marginBottom: spacing.md },
-  nameInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.md },
-  confirmButton: { backgroundColor: colors.primary, paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center' },
-  confirmButtonText: { color: colors.white, fontWeight: '700' },
-  modalCancel: { textAlign: 'center', color: colors.secondary, marginTop: spacing.sm, paddingVertical: spacing.sm },
+  nameInput: { borderWidth: 1, borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.md },
+  confirmButton: { paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center' },
+  confirmButtonText: { color: '#fff', fontWeight: '700' },
+  modalCancel: { textAlign: 'center', marginTop: spacing.sm, paddingVertical: spacing.sm },
   overlayLoading: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
-  overlayLoadingText: { color: colors.white, marginTop: spacing.sm, fontWeight: '600' },
+  overlayLoadingText: { color: '#fff', marginTop: spacing.sm, fontWeight: '600' },
 });
