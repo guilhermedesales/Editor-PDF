@@ -1,29 +1,9 @@
 // Tela do Modo 2 (Preenchimento do Template).
-//
-// Gera o formulário automaticamente a partir dos campos do template,
-// mostra uma prévia ao vivo com os valores digitados posicionados sobre
-// o PDF, e ao concluir tira um "print" dessa prévia (react-native-view-shot),
-// embute a imagem num PDF de 1 página (pdf-lib, no tamanho exato da
-// página original) e compartilha via menu nativo (inclui WhatsApp).
-//
-// Campos do tipo 'valorPorExtenso'/'numeroPorExtenso' mostram, embaixo
-// do input, uma prévia do texto por extenso gerado automaticamente.
-// Campos 'autoIncremento' são somente-leitura e usam o próximo número
-// da sequência do template (persistido em autoIncrementCounter).
 
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  Image,
-  Dimensions,
-  ScrollView,
-  TextInput,
-  Modal,
-  Alert,
-  ActivityIndicator,
+  View, Text, StyleSheet, Pressable, Image, Dimensions, ScrollView,
+  TextInput, Modal, Alert, ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ViewShot from 'react-native-view-shot';
@@ -34,6 +14,8 @@ import { ArrowLeft } from 'lucide-react-native';
 import { colors, spacing, radius, typography } from '../constants/theme';
 import { getTemplateById, saveTemplate } from '../services/templateStorage';
 import { currencyToWords, plainNumberToWords } from '../utils/numberToWords';
+import { applyMaskFor, maskFullDate, maskDayOrMonth, maskYear } from '../utils/masks';
+import { DEFAULT_DATE_CONFIG, formatDateValue, placeholderForDateConfig } from '../utils/dateFormat';
 import type { Template, TemplateField } from '../types/template';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -45,34 +27,10 @@ function keyboardTypeFor(type: TemplateField['type']) {
     case 'numeroPorExtenso':
     case 'cpf':
     case 'cnpj':
-      return 'numeric' as const;
     case 'telefone':
-      return 'phone-pad' as const;
+      return 'numeric' as const;
     default:
       return 'default' as const;
-  }
-}
-
-function placeholderFor(type: TemplateField['type']) {
-  switch (type) {
-    case 'cpf':
-      return '000.000.000-00';
-    case 'cnpj':
-      return '00.000.000/0000-00';
-    case 'data':
-      return 'DD/MM/AAAA';
-    case 'hora':
-      return 'HH:MM';
-    case 'valor':
-      return 'R$ 0,00';
-    case 'valorPorExtenso':
-      return 'Ex: 150,00';
-    case 'numeroPorExtenso':
-      return 'Ex: 10';
-    case 'telefone':
-      return '(00) 00000-0000';
-    default:
-      return '';
   }
 }
 
@@ -80,14 +38,61 @@ function sanitizeFileName(name: string) {
   return name.trim().replace(/[\\/:*?"<>|]/g, '').slice(0, 80) || 'documento';
 }
 
-// Converte o valor "cru" digitado pelo usuário no texto final que
-// aparece no PDF — é aqui que 'valorPorExtenso'/'numeroPorExtenso'
-// viram texto por extenso, e 'autoIncremento' já vem pronto.
-function displayValueFor(field: TemplateField, rawValue: string | undefined): string {
-  const raw = rawValue ?? '';
-  if (field.type === 'valorPorExtenso') return currencyToWords(raw);
-  if (field.type === 'numeroPorExtenso') return plainNumberToWords(raw);
+// Aplica a máscara certa conforme o tipo, enquanto o usuário digita.
+function maskForField(field: TemplateField, raw: string): string {
+  if (field.type === 'cpf') return applyMaskFor('cpf', raw);
+  if (field.type === 'cnpj') return applyMaskFor('cnpj', raw);
+  if (field.type === 'telefone') return applyMaskFor('telefone', raw);
+  if (field.type === 'valor') return applyMaskFor('valor', raw);
+  if (field.type === 'data') {
+    const cfg = field.dateConfig ?? DEFAULT_DATE_CONFIG;
+    if (cfg.parts.length === 3) return maskFullDate(raw);
+    if (cfg.parts[0] === 'ano') return maskYear(raw);
+    return maskDayOrMonth(raw);
+  }
   return raw;
+}
+
+function placeholderForField(field: TemplateField): string {
+  switch (field.type) {
+    case 'cpf': return '000.000.000-00';
+    case 'cnpj': return '00.000.000/0000-00';
+    case 'hora': return 'HH:MM';
+    case 'valor': return '0,00';
+    case 'valorPorExtenso': return 'Ex: 150,00';
+    case 'numeroPorExtenso': return 'Ex: 10';
+    case 'telefone': return '(00) 00000-0000';
+    case 'data': return placeholderForDateConfig(field.dateConfig ?? DEFAULT_DATE_CONFIG);
+    default: return '';
+  }
+}
+
+// Resolve o texto FINAL que aparece no PDF pra cada campo, já
+// aplicando: extenso, vínculo de valor, formato de data, símbolo R$.
+function resolveFinalValue(
+  field: TemplateField,
+  values: Record<string, string>,
+  allFields: TemplateField[]
+): string {
+  if (field.type === 'valorPorExtenso') {
+    if (field.linkedValorFieldId) {
+      const linked = allFields.find((f) => f.id === field.linkedValorFieldId);
+      const linkedRaw = linked ? values[linked.id] : undefined;
+      return linkedRaw ? currencyToWords(linkedRaw) : '';
+    }
+    return currencyToWords(values[field.id] ?? '');
+  }
+  if (field.type === 'numeroPorExtenso') return plainNumberToWords(values[field.id] ?? '');
+  if (field.type === 'valor') {
+    const raw = values[field.id] ?? '';
+    const symbol = field.valorConfig?.showSymbol ?? true;
+    return raw ? `${symbol ? 'R$ ' : ''}${raw}` : '';
+  }
+  if (field.type === 'data') {
+    const cfg = field.dateConfig ?? DEFAULT_DATE_CONFIG;
+    return formatDateValue(cfg, values[field.id] ?? '');
+  }
+  return values[field.id] ?? '';
 }
 
 export default function TemplateFillScreen({ route, navigation }: any) {
@@ -113,16 +118,12 @@ export default function TemplateFillScreen({ route, navigation }: any) {
     });
   }, [templateId]);
 
-  // Pré-preenche campos de numeração automática com o próximo número
-  // da sequência assim que o template carrega.
   useEffect(() => {
     if (!template) return;
     const nextNumber = (template.autoIncrementCounter ?? 0) + 1;
     const autoValues: Record<string, string> = {};
     template.fields.forEach((f) => {
-      if (f.type === 'autoIncremento') {
-        autoValues[f.id] = String(nextNumber);
-      }
+      if (f.type === 'autoIncremento') autoValues[f.id] = String(nextNumber);
     });
     if (Object.keys(autoValues).length > 0) {
       setValues((prev) => ({ ...autoValues, ...prev }));
@@ -145,41 +146,26 @@ export default function TemplateFillScreen({ route, navigation }: any) {
     setValues((prev) => ({ ...prev, [fieldId]: text }));
   }
 
-  async function handleConcluir() {
-    setShowNameModal(true);
-  }
-
   async function handleConfirmGenerate() {
     setShowNameModal(false);
     setGenerating(true);
     try {
-      // 1. Captura a prévia (PDF + valores digitados) como PNG
       const shotUri = await viewShotRef.current!.capture!();
       const shotFile = new File(shotUri);
       const pngBytes = await shotFile.bytes();
 
-      // 2. Monta um PDF de 1 página no tamanho exato da página original,
-      // com a imagem capturada ocupando a página inteira
       const pdfDoc = await PDFDocument.create();
       const pngImage = await pdfDoc.embedPng(pngBytes);
       const page = pdfDoc.addPage([template!.pageWidth, template!.pageHeight]);
-      page.drawImage(pngImage, {
-        x: 0,
-        y: 0,
-        width: template!.pageWidth,
-        height: template!.pageHeight,
-      });
+      page.drawImage(pngImage, { x: 0, y: 0, width: template!.pageWidth, height: template!.pageHeight });
       const pdfBytes = await pdfDoc.save();
 
-      // 3. Salva no cache com o nome escolhido pelo usuário
       const finalName = `${sanitizeFileName(fileName)}.pdf`;
       const outFile = new File(Paths.cache, finalName);
       if (outFile.exists) outFile.delete();
       outFile.create();
       outFile.write(pdfBytes);
 
-      // 4. Se houver campo de numeração automática, avança o contador
-      // do template pra próxima vez que alguém preencher
       const hasAutoIncrement = template!.fields.some((f) => f.type === 'autoIncremento');
       if (hasAutoIncrement) {
         await saveTemplate({
@@ -189,13 +175,10 @@ export default function TemplateFillScreen({ route, navigation }: any) {
         });
       }
 
-      // 5. Abre o menu nativo de compartilhamento (WhatsApp aparece aqui)
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(outFile.uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'Compartilhar PDF',
-          UTI: 'com.adobe.pdf',
+          mimeType: 'application/pdf', dialogTitle: 'Compartilhar PDF', UTI: 'com.adobe.pdf',
         });
       } else {
         Alert.alert('PDF gerado', `Salvo em: ${outFile.uri}`);
@@ -213,71 +196,70 @@ export default function TemplateFillScreen({ route, navigation }: any) {
         <Pressable onPress={() => navigation.goBack()} hitSlop={8}>
           <ArrowLeft size={22} color={colors.neutral} />
         </Pressable>
-        <Text style={styles.toolbarTitle} numberOfLines={1}>
-          Preencher Template
-        </Text>
-        <Pressable onPress={handleConcluir} disabled={generating}>
-          <Text style={[styles.toolbarAction, generating && { opacity: 0.4 }]}>
-            Concluir
-          </Text>
+        <Text style={styles.toolbarTitle} numberOfLines={1}>Preencher Template</Text>
+        <Pressable onPress={() => setShowNameModal(true)} disabled={generating}>
+          <Text style={[styles.toolbarAction, generating && { opacity: 0.4 }]}>Concluir</Text>
         </Pressable>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
         <View style={styles.formSection}>
           <Text style={styles.sectionTitle}>Dados do Documento</Text>
-          {template.fields.map((field) => (
-            <View key={field.id} style={styles.formField}>
-              <Text style={styles.formLabel}>
-                {field.internalName || 'Campo'}
-                {field.required && <Text style={styles.required}> *</Text>}
-              </Text>
+          {template.fields.map((field) => {
+            const isReadOnly = field.type === 'autoIncremento' || (field.type === 'data' && field.dateConfig?.auto);
+            const isDerivedExtenso = field.type === 'valorPorExtenso' && !!field.linkedValorFieldId;
 
-              {field.type === 'autoIncremento' ? (
-                <View style={styles.autoIncrementBox}>
-                  <Text style={styles.autoIncrementValue}>{values[field.id]}</Text>
-                  <Text style={styles.autoIncrementTag}>Automático</Text>
-                </View>
-              ) : (
-                <>
-                  <TextInput
-                    style={[
-                      styles.formInput,
-                      field.type === 'textoMultilinha' && styles.formInputMultiline,
-                    ]}
-                    value={values[field.id] ?? ''}
-                    onChangeText={(t) => setValue(field.id, t)}
-                    placeholder={placeholderFor(field.type)}
-                    keyboardType={keyboardTypeFor(field.type)}
-                    multiline={field.type === 'textoMultilinha'}
-                    numberOfLines={field.type === 'textoMultilinha' ? 4 : 1}
-                  />
-                  {(field.type === 'valorPorExtenso' || field.type === 'numeroPorExtenso') &&
-                    !!values[field.id] && (
-                      <Text style={styles.extensoPreview} numberOfLines={2}>
-                        {displayValueFor(field, values[field.id])}
-                      </Text>
-                    )}
-                </>
-              )}
-            </View>
-          ))}
+            return (
+              <View key={field.id} style={styles.formField}>
+                <Text style={styles.formLabel}>
+                  {field.internalName || 'Campo'}
+                  {field.required && <Text style={styles.required}> *</Text>}
+                </Text>
+
+                {isReadOnly ? (
+                  <View style={styles.autoBox}>
+                    <Text style={styles.autoValue}>
+                      {resolveFinalValue(field, values, template.fields) || (field.type === 'autoIncremento' ? values[field.id] : '')}
+                    </Text>
+                    <Text style={styles.autoTag}>Automático</Text>
+                  </View>
+                ) : isDerivedExtenso ? (
+                  <View style={styles.autoBox}>
+                    <Text style={styles.autoValue} numberOfLines={2}>
+                      {resolveFinalValue(field, values, template.fields) || 'Preencha o campo de valor vinculado'}
+                    </Text>
+                    <Text style={styles.autoTag}>Vinculado</Text>
+                  </View>
+                ) : (
+                  <>
+                    <TextInput
+                      style={[styles.formInput, field.type === 'textoMultilinha' && styles.formInputMultiline]}
+                      value={values[field.id] ?? ''}
+                      onChangeText={(t) => setValue(field.id, maskForField(field, t))}
+                      placeholder={placeholderForField(field)}
+                      keyboardType={keyboardTypeFor(field.type)}
+                      multiline={field.type === 'textoMultilinha'}
+                      numberOfLines={field.type === 'textoMultilinha' ? 4 : 1}
+                    />
+                    {(field.type === 'valorPorExtenso' || field.type === 'numeroPorExtenso') &&
+                      !!values[field.id] && (
+                        <Text style={styles.extensoPreview} numberOfLines={2}>
+                          {resolveFinalValue(field, values, template.fields)}
+                        </Text>
+                      )}
+                  </>
+                )}
+              </View>
+            );
+          })}
         </View>
 
         <Text style={styles.sectionTitle}>Prévia</Text>
         <View style={styles.previewWrapper}>
-          <ViewShot
-            ref={viewShotRef}
-            options={{ format: 'png', quality: 1 }}
-            style={{ width: displayWidth, height: displayHeight }}
-          >
-            <Image
-              source={{ uri: template.pdfUri }}
-              style={{ width: displayWidth, height: displayHeight }}
-              resizeMode="contain"
-            />
+          <ViewShot ref={viewShotRef} options={{ format: 'png', quality: 1 }} style={{ width: displayWidth, height: displayHeight }}>
+            <Image source={{ uri: template.pdfUri }} style={{ width: displayWidth, height: displayHeight }} resizeMode="contain" />
             {template.fields.map((field) => {
-              const finalValue = displayValueFor(field, values[field.id]);
+              const finalValue = resolveFinalValue(field, values, template.fields);
               return (
                 <Text
                   key={field.id}
@@ -307,13 +289,7 @@ export default function TemplateFillScreen({ route, navigation }: any) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Nome do Arquivo</Text>
-            <TextInput
-              autoFocus
-              style={styles.nameInput}
-              value={fileName}
-              onChangeText={setFileName}
-              placeholder="Ex: Contrato João da Silva"
-            />
+            <TextInput autoFocus style={styles.nameInput} value={fileName} onChangeText={setFileName} placeholder="Ex: Contrato João da Silva" />
             <Pressable style={styles.confirmButton} onPress={handleConfirmGenerate}>
               <Text style={styles.confirmButtonText}>Gerar e Compartilhar</Text>
             </Pressable>
@@ -338,108 +314,41 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.white },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   toolbar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
+    borderBottomWidth: 1, borderBottomColor: colors.border,
   },
   toolbarTitle: { fontSize: typography.body, fontWeight: '600', flex: 1, textAlign: 'center' },
   toolbarAction: { fontSize: typography.body, color: colors.primary, fontWeight: '700' },
   formSection: { paddingHorizontal: spacing.md, paddingTop: spacing.md },
   sectionTitle: {
-    fontSize: typography.body,
-    fontWeight: '700',
-    color: colors.neutral,
-    marginBottom: spacing.sm,
-    paddingHorizontal: spacing.md,
+    fontSize: typography.body, fontWeight: '700', color: colors.neutral,
+    marginBottom: spacing.sm, paddingHorizontal: spacing.md,
   },
   formField: { marginBottom: spacing.md },
-  formLabel: {
-    fontSize: typography.label,
-    fontWeight: '600',
-    color: colors.secondary,
-    marginBottom: spacing.xs,
-  },
+  formLabel: { fontSize: typography.label, fontWeight: '600', color: colors.secondary, marginBottom: spacing.xs },
   required: { color: colors.danger },
-  formInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    padding: spacing.sm,
-    fontSize: typography.body,
-  },
+  formInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.sm, fontSize: typography.body },
   formInputMultiline: { minHeight: 90, textAlignVertical: 'top' },
-  extensoPreview: {
-    fontSize: typography.label,
-    color: colors.primary,
-    fontStyle: 'italic',
-    marginTop: spacing.xs,
-    paddingHorizontal: 2,
-  },
-  autoIncrementBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    padding: spacing.sm,
+  extensoPreview: { fontSize: typography.label, color: colors.primary, fontStyle: 'italic', marginTop: spacing.xs, paddingHorizontal: 2 },
+  autoBox: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.sm,
     backgroundColor: colors.tertiary,
   },
-  autoIncrementValue: { fontSize: typography.body, fontWeight: '700', color: colors.neutral },
-  autoIncrementTag: {
-    fontSize: 11,
-    color: colors.primary,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: spacing.xs,
-    paddingVertical: 2,
-    borderRadius: radius.full,
+  autoValue: { fontSize: typography.body, fontWeight: '700', color: colors.neutral, flex: 1, marginRight: spacing.sm },
+  autoTag: {
+    fontSize: 11, color: colors.primary, backgroundColor: colors.primaryLight,
+    paddingHorizontal: spacing.xs, paddingVertical: 2, borderRadius: radius.full,
   },
-  previewWrapper: {
-    alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    marginTop: spacing.sm,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: colors.white,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
-    padding: spacing.md,
-  },
+  previewWrapper: { alignItems: 'center', paddingHorizontal: spacing.md, marginTop: spacing.sm },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: colors.white, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md },
   modalTitle: { fontSize: typography.body, fontWeight: '700', marginBottom: spacing.md },
-  nameInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    padding: spacing.sm,
-    marginBottom: spacing.md,
-  },
-  confirmButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: spacing.md,
-    borderRadius: radius.md,
-    alignItems: 'center',
-  },
+  nameInput: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.md },
+  confirmButton: { backgroundColor: colors.primary, paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center' },
   confirmButtonText: { color: colors.white, fontWeight: '700' },
-  modalCancel: {
-    textAlign: 'center',
-    color: colors.secondary,
-    marginTop: spacing.sm,
-    paddingVertical: spacing.sm,
-  },
-  overlayLoading: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  modalCancel: { textAlign: 'center', color: colors.secondary, marginTop: spacing.sm, paddingVertical: spacing.sm },
+  overlayLoading: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
   overlayLoadingText: { color: colors.white, marginTop: spacing.sm, fontWeight: '600' },
 });

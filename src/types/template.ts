@@ -1,9 +1,5 @@
-// Tipos centrais do app. Tudo que envolve um "Template" ou um "Campo"
-// passa por aqui — mantendo isso centralizado evita bugs de forma
-// diferente representada em cada tela.
+// Tipos centrais do app.
 
-// Tipos de campo suportados no MVP. Adicionar um novo tipo = adicionar
-// aqui + tratar a formatação/máscara dele no FieldRenderer (fill mode).
 export type FieldType =
   | 'texto'
   | 'numero'
@@ -18,17 +14,9 @@ export type FieldType =
   | 'telefone'
   | 'textoMultilinha';
 
-// Posição e tamanho são armazenados em PONTOS DE PDF (não pixels de tela).
-// Motivo: o PDF tem um tamanho fixo em pontos (ex: A4 = 595x842pt),
-// independente da resolução do celular. Se guardássemos em pixels de tela,
-// o campo ficaria desalinhado ao abrir o template em outro aparelho.
-// A conversão pixel-de-tela <-> ponto-de-pdf acontece só na hora de
-// desenhar (editor) e na hora de gerar o PDF final (pdf-lib usa pontos).
 export interface FieldPosition {
-  x: number; // distância da borda esquerda da página, em pontos
-  y: number; // distância do TOPO da página, em pontos (convertida pro
-             // sistema de coordenadas do pdf-lib, que é bottom-left, só
-             // no momento de gerar o PDF)
+  x: number;
+  y: number;
   width: number;
   height: number;
 }
@@ -36,40 +24,56 @@ export interface FieldPosition {
 export interface FieldStyle {
   fontFamily: string;
   fontSize: number;
-  color: string; // hex, ex: '#1C1B1B'
+  color: string;
   bold: boolean;
   italic: boolean;
   align: 'left' | 'center' | 'right';
 }
 
+// Configuração específica de campos de data. Permite criar campos
+// "fatiados" — ex: 3 campos separados pra "Rio de Janeiro, __ de
+// _______ de 2026", um só com dia, outro só com mês (por extenso),
+// outro só com ano (automático).
+export interface DateConfig {
+  parts: Array<'dia' | 'mes' | 'ano'>; // quais partes esse campo representa
+  monthFormat: 'numero' | 'nome' | 'abreviado'; // só relevante se 'mes' estiver em parts
+  auto: boolean; // se true, usa a data atual em vez de pedir input
+}
+
+// Configuração específica de campos do tipo 'valor'.
+export interface ValorConfig {
+  showSymbol: boolean; // se true, mostra "R$" antes do número
+}
+
 export interface TemplateField {
-  id: string; // uuid gerado na criação do campo
-  internalName: string; // "Nome Paciente" — usado pra gerar o form depois
+  id: string;
+  internalName: string;
   type: FieldType;
   position: FieldPosition;
   style: FieldStyle;
   required: boolean;
   placeholder?: string;
-  maxLines?: number; // relevante só pra textoMultilinha
+  maxLines?: number;
+  dateConfig?: DateConfig; // só usado quando type === 'data'
+  valorConfig?: ValorConfig; // só usado quando type === 'valor'
+  // quando type === 'valorPorExtenso', pode "puxar" o valor de outro
+  // campo do tipo 'valor' em vez de pedir input próprio
+  linkedValorFieldId?: string | null;
 }
 
 export interface Template {
   id: string;
-  name: string; // "Recibo Consulta", "Contrato Padrão"...
-  pdfUri: string; // caminho local do PDF original (copiado pro
-                   // sandbox do app via expo-file-system)
-  pageWidth: number; // em pontos de PDF, primeira página
+  name: string;
+  pdfUri: string;
+  pageWidth: number;
   pageHeight: number;
   fields: TemplateField[];
   createdAt: number;
   updatedAt: number;
-  autoIncrementCounter?: number; // próximo número a ser usado pelos
-                                  // campos do tipo 'autoIncremento'
+  autoIncrementCounter?: number;
 }
 
-// Estrutura salva quando o usuário PREENCHE um template (não é o template
-// em si, é uma "resposta" — útil se no futuro quisermos histórico).
 export interface TemplateFillData {
   templateId: string;
-  values: Record<string, string>; // chave = TemplateField.id
+  values: Record<string, string>;
 }

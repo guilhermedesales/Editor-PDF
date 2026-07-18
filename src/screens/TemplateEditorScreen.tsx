@@ -106,6 +106,9 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
       id: generateId(),
       internalName: '',
       type,
+      dateConfig: type === 'data' ? { parts: ['dia', 'mes', 'ano'], monthFormat: 'numero', auto: false } : undefined,
+      valorConfig: type === 'valor' ? { showSymbol: true } : undefined,
+      linkedValorFieldId: type === 'valorPorExtenso' ? null : undefined,
       position: {
         x: pageWidth / 2 - 60,
         y: pageHeight / 2 - 12,
@@ -124,6 +127,7 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
     };
     addField(defaultField);
     selectField(defaultField.id);
+    
   }
 
   function handleMoveField(field: TemplateField, dx: number, dy: number) {
@@ -175,6 +179,16 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
         },
       },
     ]);
+  }
+
+  function handleDuplicateField(field: TemplateField) {
+    const copy: TemplateField = {
+      ...field,
+      id: generateId(),
+      position: { ...field.position, x: field.position.x + 12, y: field.position.y + 12 },
+    };
+    addField(copy);
+    selectField(copy.id);
   }
 
   async function handleSave() {
@@ -322,6 +336,7 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
       <FieldEditorSheet
         visible={showFieldEditor}
         field={selectedField}
+        allFields={fields}
         onClose={() => setShowFieldEditor(false)}
         onUpdate={(partial) => selectedField && updateField(selectedField.id, partial)}
         onUpdateStyle={(partial) =>
@@ -331,6 +346,7 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
           })
         }
         onDelete={() => selectedField && handleDeleteField(selectedField.id)}
+        onDuplicate={() => selectedField && handleDuplicateField(selectedField)}
       />
     </View>
   );

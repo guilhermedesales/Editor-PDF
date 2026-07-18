@@ -1,13 +1,13 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer } from '@react-navigation/native';
-import HomeScreen from '../screens/HomeScreen';
+import BottomTabs from './BottomTabs';
 import TemplateEditorScreen from '../screens/TemplateEditorScreen';
 import TemplateFillScreen from '../screens/TemplateFillScreen';
 import { colors } from '../constants/theme';
 
 export type RootStackParamList = {
-  Home: undefined;
+  MainTabs: undefined;
   TemplateEditor: { templateId?: string };
   TemplateFill: { templateId: string };
 };
@@ -23,17 +23,9 @@ export default function RootNavigator() {
           headerTitleStyle: { fontWeight: '600' },
         }}
       >
-        <Stack.Screen name="Home" component={HomeScreen} options={{ headerShown: false }} />
-        <Stack.Screen
-          name="TemplateEditor"
-          component={TemplateEditorScreen}
-          options={{ headerShown: false }}
-        />
-        <Stack.Screen
-          name="TemplateFill"
-          component={TemplateFillScreen}
-          options={{ headerShown: false }}
-        />
+        <Stack.Screen name="MainTabs" component={BottomTabs} options={{ headerShown: false }} />
+        <Stack.Screen name="TemplateEditor" component={TemplateEditorScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="TemplateFill" component={TemplateFillScreen} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );

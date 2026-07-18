@@ -1,22 +1,13 @@
 // Representa um campo desenhado sobre a imagem do PDF durante a
 // configuração do template (Modo 1).
 //
-// IMPORTANTE: cada PanResponder é criado UMA ÚNICA VEZ (useRef) e nunca
-// recriado. Isso é essencial: PanResponder guarda o gestureState (dx/dy
-// acumulado) DENTRO da própria instância — se recriássemos o responder
-// a cada render (que acontece toda vez que setDrag dispara durante o
-// próprio gesto), o acumulado resetava no meio do arrasto, causando o
-// "tremor"/volta à posição original.
-//
-// Para os callbacks ainda lerem os valores mais recentes de field/scale/
-// zoomScale sem precisar recriar o responder, usamos refs atualizadas a
-// cada render (padrão comum pra "closures sempre atualizadas" com
-// PanResponder).
+// Indicador retangular (sem pill/oval) — borderRadius fixo e pequeno.
+// Toque simples no campo NÃO selecionado: seleciona. Toque no campo JÁ
+// selecionado: abre direto o editor (sem precisar de ícone de lápis).
 
 import React, { useRef, useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Pressable, PanResponder } from 'react-native';
-import { Pencil } from 'lucide-react-native';
-import { colors, radius } from '../constants/theme';
+import { StyleSheet, Text, View, PanResponder } from 'react-native';
+import { colors } from '../constants/theme';
 import type { TemplateField } from '../types/template';
 
 interface Props {
@@ -36,11 +27,11 @@ const MIN_WIDTH = 40;
 const MIN_HEIGHT = 16;
 const TAP_MAX_MOVEMENT = 6;
 const HANDLE_SIZE = 20;
+const FIELD_RADIUS = 4; // fixo e pequeno — evita o efeito "pill"/oval
 
 export default function FieldOverlay(props: Props) {
   const { field, scale, zoomScale, selected, onSelect, onEdit, onMove, onResize } = props;
 
-  // refs sempre atualizadas — os PanResponders (criados 1x) leem daqui
   const fieldRef = useRef(field);
   const scaleRef = useRef(scale);
   const zoomScaleRef = useRef(zoomScale);
@@ -107,14 +98,12 @@ export default function FieldOverlay(props: Props) {
     setDrag(null);
   }
 
-  // criado 1x por modo, nunca recriado — evita reset do gestureState
   function useGestureResponder(mode: Mode) {
     return useRef(
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onStartShouldSetPanResponderCapture: () => mode !== 'move',
-        onMoveShouldSetPanResponder: (_e, g) =>
-          Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2,
+        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2,
         onMoveShouldSetPanResponderCapture: (_e, g) =>
           mode !== 'move' && (Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2),
         onPanResponderTerminationRequest: () => false,
@@ -187,6 +176,7 @@ export default function FieldOverlay(props: Props) {
             width,
             height,
             borderColor: selected ? colors.primary : colors.primaryLight,
+            backgroundColor: selected ? 'rgba(37, 99, 235, 0.14)' : 'rgba(37, 99, 235, 0.08)',
           },
         ]}
       >
@@ -205,16 +195,6 @@ export default function FieldOverlay(props: Props) {
         >
           {field.internalName || 'Sem nome'}
         </Text>
-
-        {selected && (
-          <Pressable
-            style={[styles.iconButton, styles.editButton]}
-            onPress={onEdit}
-            hitSlop={8}
-          >
-            <Pencil size={14} color={colors.white} />
-          </Pressable>
-        )}
       </View>
 
       {selected &&
@@ -249,25 +229,12 @@ export default function FieldOverlay(props: Props) {
 const styles = StyleSheet.create({
   field: {
     position: 'absolute',
-    borderWidth: 2,
-    borderRadius: radius.sm,
-    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    borderWidth: 1.5,
+    borderRadius: FIELD_RADIUS,
     justifyContent: 'center',
     paddingHorizontal: 6,
   },
   label: { fontWeight: '600' },
-  iconButton: {
-    position: 'absolute',
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    top: -12,
-    right: -12,
-  },
-  editButton: {},
   resizeHandle: {
     position: 'absolute',
     backgroundColor: colors.white,
