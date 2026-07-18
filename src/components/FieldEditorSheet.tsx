@@ -1,8 +1,7 @@
-// Modal de edição de um campo já posicionado no template.
-
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, TextInput, ScrollView } from 'react-native';
-import { colors, spacing, radius, typography } from '../constants/theme';
+import { spacing, radius, typography } from '../constants/theme';
+import { useThemeStore } from '../store/useThemeStore';
 import { FIELD_TYPE_OPTIONS } from '../constants/fieldTypes';
 import { DEFAULT_DATE_CONFIG, formatDateValue } from '../utils/dateFormat';
 import { currencyToWords, plainNumberToWords } from '../utils/numberToWords';
@@ -61,14 +60,14 @@ function samplePreview(field: TemplateField, allFields: TemplateField[]): string
   }
 }
 
-function Dropdown({ value, onPress, open, children }: { value: string; onPress: () => void; open: boolean; children?: React.ReactNode }) {
+function Dropdown({ value, onPress, open, children, colors }: { value: string; onPress: () => void; open: boolean; children?: React.ReactNode; colors: any }) {
   return (
     <View>
-      <Pressable style={styles.dropdown} onPress={onPress}>
-        <Text style={styles.dropdownText} numberOfLines={1}>{value}</Text>
+      <Pressable style={[styles.dropdown, { borderColor: colors.border, backgroundColor: colors.white }]} onPress={onPress}>
+        <Text style={[styles.dropdownText, { color: colors.neutral }]} numberOfLines={1}>{value}</Text>
         <ChevronDown size={18} color={colors.secondary} />
       </Pressable>
-      {open && <View style={styles.dropdownMenu}>{children}</View>}
+      {open && <View style={[styles.dropdownMenu, { borderColor: colors.border, backgroundColor: colors.white }]}>{children}</View>}
     </View>
   );
 }
@@ -76,6 +75,7 @@ function Dropdown({ value, onPress, open, children }: { value: string; onPress: 
 export default function FieldEditorSheet({
   visible, field, allFields, onClose, onUpdate, onUpdateStyle, onDelete, onDuplicate,
 }: Props) {
+  const { colors } = useThemeStore();
   const [showTypeMenu, setShowTypeMenu] = useState(false);
   const [showFontMenu, setShowFontMenu] = useState(false);
   const [showLinkMenu, setShowLinkMenu] = useState(false);
@@ -104,70 +104,71 @@ export default function FieldEditorSheet({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
-          <View style={styles.handle} />
+        <View style={[styles.sheet, { backgroundColor: colors.white }]}>
+          <View style={[styles.handle, { backgroundColor: colors.border }]} />
           <View style={styles.headerRow}>
-            <Text style={styles.title}>Propriedades do Campo</Text>
-            <Pressable onPress={onClose} hitSlop={8} style={styles.closeButton}>
+            <Text style={[styles.title, { color: colors.neutral }]}>Propriedades do Campo</Text>
+            <Pressable onPress={onClose} hitSlop={8} style={[styles.closeButton, { backgroundColor: colors.tertiary }]}>
               <X size={18} color={colors.secondary} />
             </Pressable>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.md }}>
-            <Text style={styles.sectionLabel}>Nome do Campo</Text>
+            <Text style={[styles.sectionLabel, { color: colors.neutral }]}>Nome do Campo</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { borderColor: colors.border, color: colors.neutral }]}
               value={field.internalName}
               placeholder="Ex: nome_locatario"
+              placeholderTextColor={colors.secondary}
               onChangeText={(text) => onUpdate({ internalName: text })}
             />
 
-            <Text style={styles.sectionLabel}>Tipo de Dado</Text>
-            <Dropdown value={typeLabel} open={showTypeMenu} onPress={() => setShowTypeMenu((v) => !v)}>
+            <Text style={[styles.sectionLabel, { color: colors.neutral }]}>Tipo de Dado</Text>
+            <Dropdown value={typeLabel} open={showTypeMenu} onPress={() => setShowTypeMenu((v) => !v)} colors={colors}>
               {FIELD_TYPE_OPTIONS.map((opt) => (
                 <Pressable
                   key={opt.type}
-                  style={styles.dropdownItem}
+                  style={[styles.dropdownItem, { borderBottomColor: colors.border }]}
                   onPress={() => { onUpdate({ type: opt.type as FieldType }); setShowTypeMenu(false); }}
                 >
-                  <Text style={styles.dropdownItemText}>{opt.label}</Text>
+                  <Text style={[styles.dropdownItemText, { color: colors.neutral }]}>{opt.label}</Text>
                   {field.type === opt.type && <Check size={16} color={colors.primary} />}
                 </Pressable>
               ))}
             </Dropdown>
 
             {field.type === 'valor' && (
-              <View style={styles.configBox}>
+              <View style={[styles.configBox, { backgroundColor: colors.tertiary }]}>
                 <Pressable
                   style={styles.checkboxRow}
                   onPress={() => onUpdate({ valorConfig: { showSymbol: !(field.valorConfig?.showSymbol ?? true) } })}
                 >
-                  <View style={[styles.checkbox, (field.valorConfig?.showSymbol ?? true) && styles.checkboxChecked]} />
-                  <Text style={styles.checkboxText}>Mostrar símbolo "R$"</Text>
+                  <View style={[styles.checkbox, { borderColor: colors.border }, (field.valorConfig?.showSymbol ?? true) && { backgroundColor: colors.primary, borderColor: colors.primary }]} />
+                  <Text style={[styles.checkboxText, { color: colors.neutral }]}>Mostrar símbolo "R$"</Text>
                 </Pressable>
               </View>
             )}
 
             {field.type === 'autoIncremento' && (
-              <View style={styles.configBox}>
-                <Text style={styles.configLabel}>Quantidade de dígitos</Text>
+              <View style={[styles.configBox, { backgroundColor: colors.tertiary }]}>
+                <Text style={[styles.configLabel, { color: colors.neutral }]}>Quantidade de dígitos</Text>
                 <View style={styles.rowWrap}>
                   {DIGIT_OPTIONS.map((d) => (
                     <Pressable
                       key={d}
-                      style={[styles.pill, autoConfig.digits === d && styles.pillActive]}
+                      style={[styles.pill, { backgroundColor: colors.white, borderColor: colors.border }, autoConfig.digits === d && { backgroundColor: colors.primary, borderColor: colors.primary }]}
                       onPress={() => updateAutoConfig({ digits: d })}
                     >
-                      <Text style={[styles.pillText, autoConfig.digits === d && styles.pillTextActive]}>
+                      <Text style={[styles.pillText, { color: colors.neutral }, autoConfig.digits === d && { color: colors.white }]}>
                         {formatAutoIncrement(1, { digits: d, startAt: 1 })}
                       </Text>
                     </Pressable>
                   ))}
                 </View>
 
-                <Text style={[styles.configLabel, { marginTop: spacing.sm }]}>Começar a contar em</Text>
+                <Text style={[styles.configLabel, { color: colors.neutral, marginTop: spacing.sm }]}>Começar a contar em</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { borderColor: colors.border, color: colors.neutral }]}
                   keyboardType="numeric"
                   value={String(autoConfig.startAt)}
                   onChangeText={(t) => {
@@ -179,9 +180,10 @@ export default function FieldEditorSheet({
             )}
 
             {field.type === 'valorPorExtenso' && (
-              <View style={styles.configBox}>
-                <Text style={styles.configLabel}>Vincular a um campo de valor</Text>
+              <View style={[styles.configBox, { backgroundColor: colors.tertiary }]}>
+                <Text style={[styles.configLabel, { color: colors.neutral }]}>Vincular a um campo de valor</Text>
                 <Dropdown
+                  colors={colors}
                   value={
                     field.linkedValorFieldId
                       ? allFields.find((f) => f.id === field.linkedValorFieldId)?.internalName || 'Campo sem nome'
@@ -190,15 +192,15 @@ export default function FieldEditorSheet({
                   open={showLinkMenu}
                   onPress={() => setShowLinkMenu((v) => !v)}
                 >
-                  <Pressable style={styles.dropdownItem} onPress={() => { onUpdate({ linkedValorFieldId: null }); setShowLinkMenu(false); }}>
-                    <Text style={styles.dropdownItemText}>Nenhum (digitar manualmente)</Text>
+                  <Pressable style={[styles.dropdownItem, { borderBottomColor: colors.border }]} onPress={() => { onUpdate({ linkedValorFieldId: null }); setShowLinkMenu(false); }}>
+                    <Text style={[styles.dropdownItemText, { color: colors.neutral }]}>Nenhum (digitar manualmente)</Text>
                   </Pressable>
                   {valorFieldsAvailable.length === 0 && (
-                    <Text style={styles.emptyMenuHint}>Nenhum campo de "Valor (R$)" criado ainda.</Text>
+                    <Text style={[styles.emptyMenuHint, { color: colors.secondary }]}>Nenhum campo de "Valor (R$)" criado ainda.</Text>
                   )}
                   {valorFieldsAvailable.map((f) => (
-                    <Pressable key={f.id} style={styles.dropdownItem} onPress={() => { onUpdate({ linkedValorFieldId: f.id }); setShowLinkMenu(false); }}>
-                      <Text style={styles.dropdownItemText}>{f.internalName || 'Sem nome'}</Text>
+                    <Pressable key={f.id} style={[styles.dropdownItem, { borderBottomColor: colors.border }]} onPress={() => { onUpdate({ linkedValorFieldId: f.id }); setShowLinkMenu(false); }}>
+                      <Text style={[styles.dropdownItemText, { color: colors.neutral }]}>{f.internalName || 'Sem nome'}</Text>
                     </Pressable>
                   ))}
                 </Dropdown>
@@ -206,31 +208,31 @@ export default function FieldEditorSheet({
             )}
 
             {field.type === 'data' && (
-              <View style={styles.configBox}>
-                <Text style={styles.configLabel}>O que este campo representa</Text>
+              <View style={[styles.configBox, { backgroundColor: colors.tertiary }]}>
+                <Text style={[styles.configLabel, { color: colors.neutral }]}>O que este campo representa</Text>
                 <View style={styles.rowWrap}>
                   {(['dia', 'mes', 'ano'] as const).map((part) => {
                     const active = dateConfig.parts.length === 1 && dateConfig.parts[0] === part;
                     return (
-                      <Pressable key={part} style={[styles.pill, active && styles.pillActive]} onPress={() => updateDateConfig({ parts: [part] })}>
-                        <Text style={[styles.pillText, active && styles.pillTextActive]}>
+                      <Pressable key={part} style={[styles.pill, { backgroundColor: colors.white, borderColor: colors.border }, active && { backgroundColor: colors.primary, borderColor: colors.primary }]} onPress={() => updateDateConfig({ parts: [part] })}>
+                        <Text style={[styles.pillText, { color: colors.neutral }, active && { color: colors.white }]}>
                           {part === 'dia' ? 'Dia' : part === 'mes' ? 'Mês' : 'Ano'}
                         </Text>
                       </Pressable>
                     );
                   })}
-                  <Pressable style={[styles.pill, dateConfig.parts.length === 3 && styles.pillActive]} onPress={() => updateDateConfig({ parts: ['dia', 'mes', 'ano'] })}>
-                    <Text style={[styles.pillText, dateConfig.parts.length === 3 && styles.pillTextActive]}>Data completa</Text>
+                  <Pressable style={[styles.pill, { backgroundColor: colors.white, borderColor: colors.border }, dateConfig.parts.length === 3 && { backgroundColor: colors.primary, borderColor: colors.primary }]} onPress={() => updateDateConfig({ parts: ['dia', 'mes', 'ano'] })}>
+                    <Text style={[styles.pillText, { color: colors.neutral }, dateConfig.parts.length === 3 && { color: colors.white }]}>Data completa</Text>
                   </Pressable>
                 </View>
 
                 {dateConfig.parts.includes('mes') && (
                   <>
-                    <Text style={[styles.configLabel, { marginTop: spacing.sm }]}>Formato do mês</Text>
+                    <Text style={[styles.configLabel, { color: colors.neutral, marginTop: spacing.sm }]}>Formato do mês</Text>
                     <View style={styles.rowWrap}>
                       {(['numero', 'nome', 'abreviado'] as const).map((fmt) => (
-                        <Pressable key={fmt} style={[styles.pill, dateConfig.monthFormat === fmt && styles.pillActive]} onPress={() => updateDateConfig({ monthFormat: fmt })}>
-                          <Text style={[styles.pillText, dateConfig.monthFormat === fmt && styles.pillTextActive]}>
+                        <Pressable key={fmt} style={[styles.pill, { backgroundColor: colors.white, borderColor: colors.border }, dateConfig.monthFormat === fmt && { backgroundColor: colors.primary, borderColor: colors.primary }]} onPress={() => updateDateConfig({ monthFormat: fmt })}>
+                          <Text style={[styles.pillText, { color: colors.neutral }, dateConfig.monthFormat === fmt && { color: colors.white }]}>
                             {fmt === 'numero' ? '02' : fmt === 'nome' ? 'Fevereiro' : 'Fev.'}
                           </Text>
                         </Pressable>
@@ -240,18 +242,18 @@ export default function FieldEditorSheet({
                 )}
 
                 <Pressable style={[styles.checkboxRow, { marginTop: spacing.sm }]} onPress={() => updateDateConfig({ auto: !dateConfig.auto })}>
-                  <View style={[styles.checkbox, dateConfig.auto && styles.checkboxChecked]} />
-                  <Text style={styles.checkboxText}>Usar data atual automaticamente</Text>
+                  <View style={[styles.checkbox, { borderColor: colors.border }, dateConfig.auto && { backgroundColor: colors.primary, borderColor: colors.primary }]} />
+                  <Text style={[styles.checkboxText, { color: colors.neutral }]}>Usar data atual automaticamente</Text>
                 </Pressable>
               </View>
             )}
 
-            <Text style={styles.sectionLabel}>Prévia no PDF</Text>
-            <View style={styles.previewBox}>
+            <Text style={[styles.sectionLabel, { color: colors.neutral }]}>Prévia no PDF</Text>
+            <View style={[styles.previewBox, { borderColor: colors.border, backgroundColor: colors.white }]}>
               <Text
                 style={{
                   fontSize: field.style.fontSize ?? 12,
-                  color: field.style.color || '#1C1B1B',
+                  color: field.style.color || colors.neutral,
                   fontWeight: field.style.bold ? '700' : '400',
                   fontStyle: field.style.italic ? 'italic' : 'normal',
                   textAlign: field.style.align,
@@ -262,62 +264,62 @@ export default function FieldEditorSheet({
             </View>
 
             <Pressable style={styles.requiredRow} onPress={() => onUpdate({ required: !field.required })}>
-              <View style={[styles.checkbox, field.required && styles.checkboxChecked]} />
-              <Text style={styles.requiredText}>Campo obrigatório</Text>
+              <View style={[styles.checkbox, { borderColor: colors.border }, field.required && { backgroundColor: colors.primary, borderColor: colors.primary }]} />
+              <Text style={[styles.requiredText, { color: colors.neutral }]}>Campo obrigatório</Text>
             </Pressable>
 
-            <View style={styles.typographyCard}>
-              <Text style={styles.typographyTitle}>Tipografia</Text>
+            <View style={[styles.typographyCard, { backgroundColor: colors.tertiary }]}>
+              <Text style={[styles.typographyTitle, { color: colors.neutral }]}>Tipografia</Text>
 
               <View style={styles.row}>
                 <View style={{ flex: 1.4 }}>
-                  <Text style={styles.miniLabel}>Fonte</Text>
-                  <Dropdown value={field.style.fontFamily} open={showFontMenu} onPress={() => setShowFontMenu((v) => !v)}>
+                  <Text style={[styles.miniLabel, { color: colors.secondary }]}>Fonte</Text>
+                  <Dropdown colors={colors} value={field.style.fontFamily} open={showFontMenu} onPress={() => setShowFontMenu((v) => !v)}>
                     {FONT_OPTIONS.map((font) => (
-                      <Pressable key={font} style={styles.dropdownItem} onPress={() => { onUpdateStyle({ fontFamily: font }); setShowFontMenu(false); }}>
-                        <Text style={styles.dropdownItemText}>{font}</Text>
+                      <Pressable key={font} style={[styles.dropdownItem, { borderBottomColor: colors.border }]} onPress={() => { onUpdateStyle({ fontFamily: font }); setShowFontMenu(false); }}>
+                        <Text style={[styles.dropdownItemText, { color: colors.neutral }]}>{font}</Text>
                         {field.style.fontFamily === font && <Check size={16} color={colors.primary} />}
                       </Pressable>
                     ))}
                   </Dropdown>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.miniLabel}>Tamanho</Text>
+                  <Text style={[styles.miniLabel, { color: colors.secondary }]}>Tamanho</Text>
                   <View style={styles.stepperRow}>
-                    <Pressable style={styles.stepButton} onPress={() => adjustFontSize(-1)}>
-                      <Text style={styles.stepButtonText}>−</Text>
+                    <Pressable style={[styles.stepButton, { backgroundColor: colors.white, borderColor: colors.border }]} onPress={() => adjustFontSize(-1)}>
+                      <Text style={[styles.stepButtonText, { color: colors.neutral }]}>−</Text>
                     </Pressable>
-                    <Text style={styles.stepValue}>{field.style.fontSize ?? 12}</Text>
-                    <Pressable style={styles.stepButton} onPress={() => adjustFontSize(1)}>
-                      <Text style={styles.stepButtonText}>+</Text>
+                    <Text style={[styles.stepValue, { color: colors.neutral }]}>{field.style.fontSize ?? 12}</Text>
+                    <Pressable style={[styles.stepButton, { backgroundColor: colors.white, borderColor: colors.border }]} onPress={() => adjustFontSize(1)}>
+                      <Text style={[styles.stepButtonText, { color: colors.neutral }]}>+</Text>
                     </Pressable>
                   </View>
                 </View>
               </View>
 
-              <Text style={styles.miniLabel}>Cor</Text>
+              <Text style={[styles.miniLabel, { color: colors.secondary }]}>Cor</Text>
               <View style={styles.colorRow}>
                 {COLOR_OPTIONS.map((color) => (
                   <Pressable
                     key={color}
-                    style={[styles.swatch, { backgroundColor: color }, field.style.color === color && styles.swatchSelected]}
+                    style={[styles.swatch, { backgroundColor: color }, field.style.color === color && { borderColor: colors.neutral }]}
                     onPress={() => onUpdateStyle({ color })}
                   />
                 ))}
-                <View style={styles.hexBox}>
-                  <View style={[styles.hexDot, { backgroundColor: field.style.color || '#1C1B1B' }]} />
-                  <Text style={styles.hexText}>{(field.style.color || '#1C1B1B').toUpperCase()}</Text>
+                <View style={[styles.hexBox, { backgroundColor: colors.white, borderColor: colors.border }]}>
+                  <View style={[styles.hexDot, { backgroundColor: field.style.color || colors.neutral }]} />
+                  <Text style={[styles.hexText, { color: colors.neutral }]}>{(field.style.color || '#1C1B1B').toUpperCase()}</Text>
                 </View>
-                <Pressable style={[styles.stylePill, field.style.bold && styles.stylePillActive]} onPress={() => onUpdateStyle({ bold: !field.style.bold })}>
-                  <Text style={[styles.stylePillText, field.style.bold && styles.stylePillTextActive, { fontWeight: '800' }]}>B</Text>
+                <Pressable style={[styles.stylePill, { backgroundColor: colors.white, borderColor: colors.border }, field.style.bold && { backgroundColor: colors.neutral, borderColor: colors.neutral }]} onPress={() => onUpdateStyle({ bold: !field.style.bold })}>
+                  <Text style={[styles.stylePillText, { color: colors.neutral, fontWeight: '800' }, field.style.bold && { color: colors.white }]}>B</Text>
                 </Pressable>
-                <Pressable style={[styles.stylePill, field.style.italic && styles.stylePillActive]} onPress={() => onUpdateStyle({ italic: !field.style.italic })}>
-                  <Text style={[styles.stylePillText, field.style.italic && styles.stylePillTextActive, { fontStyle: 'italic' }]}>I</Text>
+                <Pressable style={[styles.stylePill, { backgroundColor: colors.white, borderColor: colors.border }, field.style.italic && { backgroundColor: colors.neutral, borderColor: colors.neutral }]} onPress={() => onUpdateStyle({ italic: !field.style.italic })}>
+                  <Text style={[styles.stylePillText, { color: colors.neutral, fontStyle: 'italic' }, field.style.italic && { color: colors.white }]}>I</Text>
                 </Pressable>
               </View>
 
-              <Text style={styles.miniLabel}>Alinhamento</Text>
-              <View style={styles.alignRow}>
+              <Text style={[styles.miniLabel, { color: colors.secondary }]}>Alinhamento</Text>
+              <View style={[styles.alignRow, { backgroundColor: colors.white, borderColor: colors.border }]}>
                 {[
                   { value: 'left' as const, Icon: AlignLeft },
                   { value: 'center' as const, Icon: AlignCenter },
@@ -325,7 +327,7 @@ export default function FieldEditorSheet({
                 ].map(({ value, Icon }) => (
                   <Pressable
                     key={value}
-                    style={[styles.alignOption, field.style.align === value && styles.alignOptionActive]}
+                    style={[styles.alignOption, field.style.align === value && { backgroundColor: colors.primaryLight }]}
                     onPress={() => onUpdateStyle({ align: value })}
                   >
                     <Icon size={18} color={field.style.align === value ? colors.primary : colors.secondary} />
@@ -336,9 +338,9 @@ export default function FieldEditorSheet({
 
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sectionLabel}>Largura (px)</Text>
+                <Text style={[styles.sectionLabel, { color: colors.neutral }]}>Largura (px)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { borderColor: colors.border, color: colors.neutral }]}
                   keyboardType="numeric"
                   value={String(Math.round(field.position.width))}
                   onChangeText={(t) => {
@@ -348,9 +350,9 @@ export default function FieldEditorSheet({
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sectionLabel}>Altura (px)</Text>
+                <Text style={[styles.sectionLabel, { color: colors.neutral }]}>Altura (px)</Text>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, { borderColor: colors.border, color: colors.neutral }]}
                   keyboardType="numeric"
                   value={String(Math.round(field.position.height))}
                   onChangeText={(t) => {
@@ -362,15 +364,15 @@ export default function FieldEditorSheet({
             </View>
           </ScrollView>
 
-          <View style={styles.actionsRow}>
-            <Pressable style={styles.duplicateButton} onPress={onDuplicate}>
+          <View style={[styles.actionsRow, { borderTopColor: colors.border }]}>
+            <Pressable style={[styles.duplicateButton, { borderColor: colors.border }]} onPress={onDuplicate}>
               <Copy size={20} color={colors.neutral} />
             </Pressable>
-            <Pressable style={styles.deleteButton} onPress={onDelete}>
+            <Pressable style={[styles.deleteButton, { borderColor: colors.danger }]} onPress={onDelete}>
               <Trash2 size={20} color={colors.danger} />
             </Pressable>
-            <Pressable style={styles.doneButton} onPress={onClose}>
-              <Text style={styles.doneButtonText}>Salvar</Text>
+            <Pressable style={[styles.doneButton, { backgroundColor: colors.primary }]} onPress={onClose}>
+              <Text style={[styles.doneButtonText, { color: colors.white }]}>Salvar</Text>
             </Pressable>
           </View>
         </View>
@@ -381,81 +383,50 @@ export default function FieldEditorSheet({
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
-  sheet: {
-    backgroundColor: colors.white, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg,
-    paddingHorizontal: spacing.md, paddingTop: spacing.sm, maxHeight: '90%',
-  },
-  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.border, alignSelf: 'center', marginBottom: spacing.sm },
+  sheet: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, paddingHorizontal: spacing.md, paddingTop: spacing.sm, maxHeight: '90%' },
+  handle: { width: 36, height: 4, borderRadius: 2, alignSelf: 'center', marginBottom: spacing.sm },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md },
-  title: { fontSize: 18, fontWeight: '700', color: colors.neutral },
-  closeButton: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.tertiary, alignItems: 'center', justifyContent: 'center' },
-  sectionLabel: { fontSize: typography.label, fontWeight: '600', color: colors.neutral, marginTop: spacing.md, marginBottom: spacing.xs },
-  miniLabel: { fontSize: 12, fontWeight: '600', color: colors.secondary, marginBottom: spacing.xs, marginTop: spacing.sm },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.sm, fontSize: typography.body },
-  dropdown: {
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.sm,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.white,
-  },
-  dropdownText: { fontSize: typography.body, color: colors.neutral, flex: 1 },
-  dropdownMenu: { borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, marginTop: 4, overflow: 'hidden', backgroundColor: colors.white },
-  dropdownItem: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.border,
-  },
-  dropdownItemText: { fontSize: typography.label, color: colors.neutral },
-  emptyMenuHint: { fontSize: 11, color: colors.secondary, padding: spacing.sm },
-  configBox: { backgroundColor: colors.tertiary, borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.sm },
-  configLabel: { fontSize: typography.label, fontWeight: '600', color: colors.neutral, marginBottom: spacing.xs },
-  previewBox: {
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.md,
-    backgroundColor: colors.white, minHeight: 44, justifyContent: 'center',
-  },
+  title: { fontSize: 18, fontWeight: '700' },
+  closeButton: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  sectionLabel: { fontSize: typography.label, fontWeight: '600', marginTop: spacing.md, marginBottom: spacing.xs },
+  miniLabel: { fontSize: 12, fontWeight: '600', marginBottom: spacing.xs, marginTop: spacing.sm },
+  input: { borderWidth: 1, borderRadius: radius.sm, padding: spacing.sm, fontSize: typography.body },
+  dropdown: { borderWidth: 1, borderRadius: radius.sm, padding: spacing.sm, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  dropdownText: { fontSize: typography.body, flex: 1 },
+  dropdownMenu: { borderWidth: 1, borderRadius: radius.sm, marginTop: 4, overflow: 'hidden' },
+  dropdownItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: spacing.sm, paddingHorizontal: spacing.sm, borderBottomWidth: 1 },
+  dropdownItemText: { fontSize: typography.label },
+  emptyMenuHint: { fontSize: 11, padding: spacing.sm },
+  configBox: { borderRadius: radius.md, padding: spacing.sm, marginTop: spacing.sm },
+  configLabel: { fontSize: typography.label, fontWeight: '600', marginBottom: spacing.xs },
+  previewBox: { borderWidth: 1, borderRadius: radius.sm, padding: spacing.md, minHeight: 44, justifyContent: 'center' },
   requiredRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.md },
   checkboxRow: { flexDirection: 'row', alignItems: 'center' },
-  checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, borderColor: colors.border, marginRight: spacing.sm },
-  checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primary },
-  checkboxText: { fontSize: typography.label, color: colors.neutral },
-  requiredText: { fontSize: typography.label, color: colors.neutral },
+  checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2, marginRight: spacing.sm },
+  checkboxText: { fontSize: typography.label },
+  requiredText: { fontSize: typography.label },
   row: { flexDirection: 'row', gap: spacing.sm },
   rowWrap: { flexDirection: 'row', gap: spacing.xs, flexWrap: 'wrap' },
-  typographyCard: {
-    backgroundColor: '#F5F3F0', borderRadius: radius.md, padding: spacing.md,
-    marginTop: spacing.lg, marginBottom: spacing.sm,
-  },
-  typographyTitle: { fontSize: typography.body, fontWeight: '700', color: colors.neutral, marginBottom: spacing.xs },
+  typographyCard: { borderRadius: radius.md, padding: spacing.md, marginTop: spacing.lg, marginBottom: spacing.sm },
+  typographyTitle: { fontSize: typography.body, fontWeight: '700', marginBottom: spacing.xs },
   stepperRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-  stepButton: { width: 32, height: 32, borderRadius: radius.sm, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border },
-  stepButtonText: { fontSize: 18, fontWeight: '700', color: colors.neutral },
+  stepButton: { width: 32, height: 32, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  stepButtonText: { fontSize: 18, fontWeight: '700' },
   stepValue: { fontSize: typography.body, fontWeight: '600', minWidth: 24, textAlign: 'center' },
   colorRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, flexWrap: 'wrap' },
   swatch: { width: 26, height: 26, borderRadius: 13, borderWidth: 2, borderColor: 'transparent' },
-  swatchSelected: { borderColor: colors.neutral },
-  hexBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.white,
-    borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 6,
-  },
+  hexBox: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: radius.sm, paddingHorizontal: spacing.sm, paddingVertical: 6 },
   hexDot: { width: 14, height: 14, borderRadius: 7 },
-  hexText: { fontSize: 12, color: colors.neutral, fontWeight: '600' },
-  stylePill: {
-    width: 34, height: 34, borderRadius: radius.sm, backgroundColor: colors.white,
-    borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center',
-  },
-  stylePillActive: { backgroundColor: colors.neutral, borderColor: colors.neutral },
-  stylePillText: { fontSize: 15, color: colors.neutral },
-  stylePillTextActive: { color: colors.white },
-  alignRow: { flexDirection: 'row', backgroundColor: colors.white, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, overflow: 'hidden' },
+  hexText: { fontSize: 12, fontWeight: '600' },
+  stylePill: { width: 34, height: 34, borderRadius: radius.sm, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  stylePillText: { fontSize: 15 },
+  alignRow: { flexDirection: 'row', borderRadius: radius.sm, borderWidth: 1, overflow: 'hidden' },
   alignOption: { flex: 1, paddingVertical: spacing.sm, alignItems: 'center', justifyContent: 'center' },
-  alignOptionActive: { backgroundColor: colors.primaryLight },
-  pill: { paddingVertical: spacing.xs, paddingHorizontal: spacing.md, borderRadius: radius.full, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.border },
-  pillActive: { backgroundColor: colors.primary, borderColor: colors.primary },
-  pillText: { fontSize: typography.label, fontWeight: '600', color: colors.neutral },
-  pillTextActive: { color: colors.white },
-  actionsRow: {
-    flexDirection: 'row', gap: spacing.sm, paddingVertical: spacing.md,
-    borderTopWidth: 1, borderTopColor: colors.border,
-  },
-  duplicateButton: { width: 52, height: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
-  deleteButton: { width: 52, height: 52, borderRadius: radius.md, borderWidth: 1, borderColor: colors.danger, alignItems: 'center', justifyContent: 'center' },
-  doneButton: { flex: 1, height: 52, borderRadius: radius.md, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  doneButtonText: { color: colors.white, fontWeight: '700', fontSize: typography.body },
+  pill: { paddingVertical: spacing.xs, paddingHorizontal: spacing.md, borderRadius: radius.full, borderWidth: 1 },
+  pillText: { fontSize: typography.label, fontWeight: '600' },
+  actionsRow: { flexDirection: 'row', gap: spacing.sm, paddingVertical: spacing.md, borderTopWidth: 1 },
+  duplicateButton: { width: 52, height: 52, borderRadius: radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  deleteButton: { width: 52, height: 52, borderRadius: radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  doneButton: { flex: 1, height: 52, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  doneButtonText: { fontWeight: '700', fontSize: typography.body },
 });

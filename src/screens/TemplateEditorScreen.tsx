@@ -7,7 +7,8 @@ import {
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { colors, spacing, radius, typography } from '../constants/theme';
+import { spacing, radius, typography, colors } from '../constants/theme';
+import { useThemeStore } from '../store/useThemeStore';
 import { useEditorStore } from '../store/useEditorstorage';
 import PdfPageRasterizer from '../components/PdfPageRasterizer';
 import FieldOverlay from '../components/FieldOverlay';
@@ -29,6 +30,7 @@ function generateId() {
 export default function TemplateEditorScreen({ route, navigation }: any) {
   const templateId: string | undefined = route.params?.templateId;
   const insets = useSafeAreaInsets();
+  const { colors } = useThemeStore();
 
   const {
     pdfUri, pageWidth, pageHeight, fields, selectedFieldId, templateName,

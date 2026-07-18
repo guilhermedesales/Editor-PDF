@@ -1,13 +1,8 @@
-// Modal de prévia dentro do editor de template: mostra o PDF com os
-// campos já preenchidos com texto de exemplo, e permite ao usuário
-// TOCAR em cada campo e editar o texto ali mesmo — só pra visualizar
-// como fica de verdade, sem precisar ir até a tela de Preencher.
-// Nada aqui é salvo; é só uma simulação visual.
-
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Image, TextInput, ScrollView, Dimensions } from 'react-native';
 import { X } from 'lucide-react-native';
-import { colors, spacing, radius, typography } from '../constants/theme';
+import { spacing, radius, typography } from '../constants/theme';
+import { useThemeStore } from '../store/useThemeStore';
 import { DEFAULT_DATE_CONFIG, formatDateValue } from '../utils/dateFormat';
 import { currencyToWords, plainNumberToWords } from '../utils/numberToWords';
 import { DEFAULT_AUTO_INCREMENT_CONFIG, formatAutoIncrement } from '../utils/autoIncrement';
@@ -48,6 +43,7 @@ function sampleFor(field: TemplateField): string {
 }
 
 export default function TemplatePreviewModal({ visible, onClose, pdfUri, pageWidth, pageHeight, fields }: Props) {
+  const { colors } = useThemeStore();
   const [values, setValues] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -57,22 +53,18 @@ export default function TemplatePreviewModal({ visible, onClose, pdfUri, pageWid
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.white }]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Prévia do Documento</Text>
-          <Pressable onPress={onClose} hitSlop={8} style={styles.closeButton}>
+          <Text style={[styles.headerTitle, { color: colors.neutral }]}>Prévia do Documento</Text>
+          <Pressable onPress={onClose} hitSlop={8} style={[styles.closeButton, { backgroundColor: colors.tertiary }]}>
             <X size={18} color={colors.secondary} />
           </Pressable>
         </View>
-        <Text style={styles.hint}>Toque em qualquer campo para editar o texto de exemplo</Text>
+        <Text style={[styles.hint, { color: colors.secondary }]}>Toque em qualquer campo para editar o texto de exemplo</Text>
 
         <ScrollView contentContainerStyle={{ alignItems: 'center', padding: spacing.md }}>
           <View style={{ width: displayWidth, height: displayHeight }}>
-            <Image
-              source={{ uri: pdfUri }}
-              style={{ width: displayWidth, height: displayHeight }}
-              resizeMode="contain"
-            />
+            <Image source={{ uri: pdfUri }} style={{ width: displayWidth, height: displayHeight }} resizeMode="contain" />
             {fields.map((field) => {
               const value = values[field.id] ?? sampleFor(field);
               const isEditing = editingId === field.id;
@@ -80,19 +72,14 @@ export default function TemplatePreviewModal({ visible, onClose, pdfUri, pageWid
                 <Pressable
                   key={field.id}
                   onPress={() => setEditingId(field.id)}
-                  style={{
-                    position: 'absolute',
-                    left: field.position.x * scale,
-                    top: field.position.y * scale,
-                    width: field.position.width * scale,
-                    height: field.position.height * scale,
-                  }}
+                  style={{ position: 'absolute', left: field.position.x * scale, top: field.position.y * scale, width: field.position.width * scale, height: field.position.height * scale }}
                 >
                   {isEditing ? (
                     <TextInput
                       autoFocus
                       style={[
                         styles.inlineInput,
+                        { borderColor: colors.primary, backgroundColor: colors.white },
                         {
                           fontSize: (field.style.fontSize ?? 12) * scale,
                           color: field.style.color || colors.neutral,
@@ -131,16 +118,10 @@ export default function TemplatePreviewModal({ visible, onClose, pdfUri, pageWid
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.white, paddingTop: 50 },
-  header: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingHorizontal: spacing.md, paddingBottom: spacing.xs,
-  },
-  headerTitle: { fontSize: typography.body, fontWeight: '700', color: colors.neutral },
-  closeButton: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.tertiary, alignItems: 'center', justifyContent: 'center' },
-  hint: { fontSize: typography.label, color: colors.secondary, paddingHorizontal: spacing.md, marginBottom: spacing.sm },
-  inlineInput: {
-    borderWidth: 1, borderColor: colors.primary, borderRadius: 4,
-    padding: 0, margin: 0, backgroundColor: colors.white,
-  },
+  container: { flex: 1, paddingTop: 50 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.md, paddingBottom: spacing.xs },
+  headerTitle: { fontSize: typography.body, fontWeight: '700' },
+  closeButton: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  hint: { fontSize: typography.label, paddingHorizontal: spacing.md, marginBottom: spacing.sm },
+  inlineInput: { borderWidth: 1, borderRadius: 4, padding: 0, margin: 0 },
 });

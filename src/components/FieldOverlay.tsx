@@ -1,17 +1,6 @@
-// Representa um campo desenhado sobre a imagem do PDF durante a
-// configuração do template (Modo 1).
-//
-// O comportamento do toque/arrasto depende da ferramenta ativa (prop
-// `tool`), escolhida na barra lateral direita:
-// - 'move': só arrasta (mover). Toque simples não faz nada.
-// - 'resize': toque seleciona (mostra as 4 bolinhas); arrastar as
-//   bolinhas redimensiona. Arrastar o corpo do campo NÃO move.
-// - 'edit': toque abre direto o editor de propriedades.
-// - 'delete': toque exclui direto o campo.
-
 import React, { useRef, useState, useEffect } from 'react';
 import { StyleSheet, Text, View, PanResponder } from 'react-native';
-import { colors } from '../constants/theme';
+import { useThemeStore } from '../store/useThemeStore';
 import type { TemplateField } from '../types/template';
 
 export type FieldTool = 'move' | 'resize' | 'edit' | 'delete';
@@ -39,6 +28,7 @@ const FIELD_RADIUS = 4;
 
 export default function FieldOverlay(props: Props) {
   const { field, scale, zoomScale, selected, tool, onSelect, onEdit, onDelete, onMove, onResize } = props;
+  const { colors } = useThemeStore();
 
   const fieldRef = useRef(field);
   const scaleRef = useRef(scale);
@@ -62,12 +52,10 @@ export default function FieldOverlay(props: Props) {
     const { onSelect, onMove, onResize } = callbacksRef.current;
 
     if (mode === 'move') {
-      const movedEnough =
-        Math.abs(dxScreen) > TAP_MAX_MOVEMENT || Math.abs(dyScreen) > TAP_MAX_MOVEMENT;
+      const movedEnough = Math.abs(dxScreen) > TAP_MAX_MOVEMENT || Math.abs(dyScreen) > TAP_MAX_MOVEMENT;
       if (movedEnough) {
         onMove(dxScreen / effectiveScale, dyScreen / effectiveScale);
       } else if (toolRef.current === 'resize') {
-        // no modo resize, um toque simples apenas seleciona (mostra as bolinhas)
         onSelect();
       }
       setDrag(null);
@@ -115,11 +103,7 @@ export default function FieldOverlay(props: Props) {
         onMoveShouldSetPanResponderCapture: (_e, g) =>
           mode !== 'move' && toolRef.current === 'resize' && (Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2),
         onPanResponderTerminationRequest: () => false,
-
-        onPanResponderGrant: () => {
-          // toque simples (sem arrasto) — trata edit/delete/select aqui,
-          // já que o START pode não disparar MOVE algum
-        },
+        onPanResponderGrant: () => {},
         onPanResponderMove: (_e, g) => {
           setDrag({ mode, dx: g.dx / (zoomScaleRef.current || 1), dy: g.dy / (zoomScaleRef.current || 1) });
         },
@@ -143,7 +127,6 @@ export default function FieldOverlay(props: Props) {
     if (t === 'edit') onEdit();
     else if (t === 'delete') onDelete();
     else if (t === 'resize') onSelect();
-    // no modo 'move', toque simples não faz nada (só arrasto)
   }
 
   const moveResponder = useGestureResponder('move');
@@ -225,14 +208,12 @@ export default function FieldOverlay(props: Props) {
       </View>
 
       {showHandles &&
-        (
-          [
-            { mode: 'tl' as Mode, responder: tlResponder, top: -handleHalf, left: -handleHalf },
-            { mode: 'tr' as Mode, responder: trResponder, top: -handleHalf, left: width - handleHalf },
-            { mode: 'bl' as Mode, responder: blResponder, top: height - handleHalf, left: -handleHalf },
-            { mode: 'br' as Mode, responder: brResponder, top: height - handleHalf, left: width - handleHalf },
-          ] as const
-        ).map(({ mode, responder, top: handleTop, left: handleLeft }) => (
+        ([
+          { mode: 'tl' as Mode, responder: tlResponder, top: -handleHalf, left: -handleHalf },
+          { mode: 'tr' as Mode, responder: trResponder, top: -handleHalf, left: width - handleHalf },
+          { mode: 'bl' as Mode, responder: blResponder, top: height - handleHalf, left: -handleHalf },
+          { mode: 'br' as Mode, responder: brResponder, top: height - handleHalf, left: width - handleHalf },
+        ] as const).map(({ mode, responder, top: handleTop, left: handleLeft }) => (
           <View
             key={mode}
             {...responder.panHandlers}
@@ -240,11 +221,9 @@ export default function FieldOverlay(props: Props) {
             style={[
               styles.resizeHandle,
               {
-                left: left + handleLeft,
-                top: top + handleTop,
-                width: handleVisualSize,
-                height: handleVisualSize,
-                borderRadius: handleVisualSize / 2,
+                left: left + handleLeft, top: top + handleTop,
+                width: handleVisualSize, height: handleVisualSize, borderRadius: handleVisualSize / 2,
+                backgroundColor: colors.white, borderColor: colors.primary,
               },
             ]}
           />
@@ -254,18 +233,7 @@ export default function FieldOverlay(props: Props) {
 }
 
 const styles = StyleSheet.create({
-  field: {
-    position: 'absolute',
-    borderWidth: 1.5,
-    borderRadius: FIELD_RADIUS,
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-  },
+  field: { position: 'absolute', borderWidth: 1.5, borderRadius: FIELD_RADIUS, justifyContent: 'center', paddingHorizontal: 6 },
   label: { fontWeight: '600' },
-  resizeHandle: {
-    position: 'absolute',
-    backgroundColor: colors.white,
-    borderWidth: 2,
-    borderColor: colors.primary,
-  },
+  resizeHandle: { position: 'absolute', borderWidth: 2 },
 });

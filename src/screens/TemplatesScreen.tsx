@@ -1,13 +1,10 @@
-// Aba "Templates": busca + lista de templates salvos. Cada card tem
-// duas zonas de toque: o corpo (nome + thumbnail) leva para Preencher;
-// uma pequena seção à direita com ícone de lápis leva para Editar.
-
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Image, TextInput } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FileText, Plus, Pencil, Search } from 'lucide-react-native';
-import { colors, spacing, radius, typography } from '../constants/theme';
+import { spacing, radius, typography } from '../constants/theme';
+import { useThemeStore } from '../store/useThemeStore';
 import { getAllTemplates } from '../services/templateStorage';
 import type { Template } from '../types/template';
 
@@ -28,6 +25,7 @@ export default function TemplatesScreen({ navigation }: any) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [query, setQuery] = useState('');
   const insets = useSafeAreaInsets();
+  const { colors } = useThemeStore();
 
   useFocusEffect(
     useCallback(() => {
@@ -40,16 +38,16 @@ export default function TemplatesScreen({ navigation }: any) {
     : templates;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <View style={styles.headerIconWrap}><FileText size={18} color={colors.white} /></View>
-        <Text style={styles.headerTitle}>Templates</Text>
+        <View style={[styles.headerIconWrap, { backgroundColor: colors.primary }]}><FileText size={18} color={colors.white} /></View>
+        <Text style={[styles.headerTitle, { color: colors.primary }]}>Templates</Text>
       </View>
 
-      <View style={styles.searchBox}>
+      <View style={[styles.searchBox, { backgroundColor: colors.tertiary }]}>
         <Search size={18} color={colors.secondary} />
         <TextInput
-          style={styles.searchInput}
+          style={[styles.searchInput, { color: colors.neutral }]}
           placeholder="Buscar templates..."
           placeholderTextColor={colors.secondary}
           value={query}
@@ -63,26 +61,27 @@ export default function TemplatesScreen({ navigation }: any) {
         contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: spacing.xl }}
         ListHeaderComponent={
           <>
-            <Pressable style={styles.newButton} onPress={() => navigation.navigate('TemplateEditor', {})}>
+            <Pressable style={[styles.newButton, { backgroundColor: colors.primary }]} onPress={() => navigation.navigate('TemplateEditor', {})}>
               <Plus size={20} color={colors.white} />
-              <Text style={styles.newButtonText}>Novo Template</Text>
+              <Text style={[styles.newButtonText, { color: colors.white }]}>Novo Template</Text>
             </Pressable>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Meus Templates</Text>
-              {filtered.length > 0 && <Text style={styles.sectionCount}>{filtered.length}</Text>}
+              <Text style={[styles.sectionTitle, { color: colors.neutral }]}>Meus Templates</Text>
+              {filtered.length > 0 && <Text style={[styles.sectionCount, { color: colors.secondary, backgroundColor: colors.tertiary }]}>{filtered.length}</Text>}
             </View>
           </>
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <View style={styles.emptyIconWrap}><FileText size={28} color={colors.secondary} /></View>
-            <Text style={styles.emptyTitle}>{query ? 'Nenhum resultado' : 'Nenhum template ainda'}</Text>
-            <Text style={styles.emptyText}>{query ? 'Tente buscar por outro nome.' : 'Toque em "Novo Template" para criar o primeiro.'}</Text>
+            <View style={[styles.emptyIconWrap, { backgroundColor: colors.tertiary }]}><FileText size={28} color={colors.secondary} /></View>
+            <Text style={[styles.emptyTitle, { color: colors.neutral }]}>{query ? 'Nenhum resultado' : 'Nenhum template ainda'}</Text>
+            <Text style={[styles.emptyText, { color: colors.secondary }]}>{query ? 'Tente buscar por outro nome.' : 'Toque em "Novo Template" para criar o primeiro.'}</Text>
           </View>
         }
         renderItem={({ item }) => (
           <TemplateCard
             template={item}
+            colors={colors}
             onEdit={() => navigation.navigate('TemplateEditor', { templateId: item.id })}
             onFill={() => navigation.navigate('TemplateFill', { templateId: item.id })}
           />
@@ -92,11 +91,11 @@ export default function TemplatesScreen({ navigation }: any) {
   );
 }
 
-function TemplateCard({ template, onEdit, onFill }: { template: Template; onEdit: () => void; onFill: () => void }) {
+function TemplateCard({ template, colors, onEdit, onFill }: { template: Template; colors: any; onEdit: () => void; onFill: () => void }) {
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: colors.tertiary }]}>
       <Pressable style={styles.cardMain} onPress={onFill}>
-        <View style={styles.thumbWrap}>
+        <View style={[styles.thumbWrap, { backgroundColor: colors.primaryLight }]}>
           {template.pdfUri ? (
             <Image source={{ uri: template.pdfUri }} style={styles.thumbImage} resizeMode="cover" />
           ) : (
@@ -104,68 +103,49 @@ function TemplateCard({ template, onEdit, onFill }: { template: Template; onEdit
           )}
         </View>
         <View style={styles.cardBody}>
-          <Text style={styles.cardTitle} numberOfLines={1}>{template.name}</Text>
+          <Text style={[styles.cardTitle, { color: colors.neutral }]} numberOfLines={1}>{template.name}</Text>
           <View style={styles.cardMetaRow}>
-            <Text style={styles.cardMetaField}>{template.fields.length} campos</Text>
-            <Text style={styles.cardMetaDot}>·</Text>
-            <Text style={styles.cardMetaTime}>{formatRelativeTime(template.updatedAt)}</Text>
+            <Text style={[styles.cardMetaField, { color: colors.primary }]}>{template.fields.length} campos</Text>
+            <Text style={[styles.cardMetaDot, { color: colors.secondary }]}>·</Text>
+            <Text style={[styles.cardMetaTime, { color: colors.secondary }]}>{formatRelativeTime(template.updatedAt)}</Text>
           </View>
         </View>
       </Pressable>
 
-      <Pressable style={styles.editZone} onPress={onEdit}>
+      <Pressable style={[styles.editZone, { backgroundColor: colors.primaryLight, borderLeftColor: colors.border }]} onPress={onEdit}>
         <Pencil size={16} color={colors.primary} />
-        <Text style={styles.editZoneText}>Editar</Text>
+        <Text style={[styles.editZoneText, { color: colors.primary }]}>Editar</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.white },
+  container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.sm },
-  headerIconWrap: { width: 30, height: 30, borderRadius: radius.sm, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: 20, fontWeight: '700', color: colors.primary },
-  searchBox: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-    marginHorizontal: spacing.md, marginBottom: spacing.md,
-    backgroundColor: colors.tertiary, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 10,
-  },
-  searchInput: { flex: 1, fontSize: typography.body, color: colors.neutral },
-  newButton: {
-    flexDirection: 'row', gap: spacing.xs, backgroundColor: colors.primary, paddingVertical: spacing.md,
-    borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg,
-  },
-  newButtonText: { color: colors.white, fontSize: typography.body, fontWeight: '700' },
+  headerIconWrap: { width: 30, height: 30, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: 20, fontWeight: '700' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginHorizontal: spacing.md, marginBottom: spacing.md, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 10 },
+  searchInput: { flex: 1, fontSize: typography.body },
+  newButton: { flexDirection: 'row', gap: spacing.xs, paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg },
+  newButtonText: { fontSize: typography.body, fontWeight: '700' },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
-  sectionTitle: { fontSize: typography.headline * 0.6, fontWeight: '700', color: colors.neutral },
-  sectionCount: {
-    fontSize: typography.label, color: colors.secondary, backgroundColor: colors.tertiary,
-    paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.full, overflow: 'hidden',
-  },
+  sectionTitle: { fontSize: typography.headline * 0.6, fontWeight: '700' },
+  sectionCount: { fontSize: typography.label, paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radius.full, overflow: 'hidden' },
   emptyState: { paddingVertical: spacing.xl * 1.5, alignItems: 'center' },
-  emptyIconWrap: { width: 64, height: 64, borderRadius: 32, backgroundColor: colors.tertiary, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md },
-  emptyTitle: { fontSize: typography.body, fontWeight: '700', color: colors.neutral, marginBottom: spacing.xs },
-  emptyText: { color: colors.secondary, textAlign: 'center', fontSize: typography.label },
-  card: {
-    flexDirection: 'row', backgroundColor: colors.tertiary, borderRadius: radius.md,
-    marginBottom: spacing.sm, overflow: 'hidden',
-  },
+  emptyIconWrap: { width: 64, height: 64, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.md },
+  emptyTitle: { fontSize: typography.body, fontWeight: '700', marginBottom: spacing.xs },
+  emptyText: { textAlign: 'center', fontSize: typography.label },
+  card: { flexDirection: 'row', borderRadius: radius.md, marginBottom: spacing.sm, overflow: 'hidden' },
   cardMain: { flex: 1, flexDirection: 'row', alignItems: 'center', padding: spacing.sm },
-  thumbWrap: {
-    width: 52, height: 52, borderRadius: radius.sm, backgroundColor: colors.primaryLight,
-    alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: spacing.sm,
-  },
+  thumbWrap: { width: 52, height: 52, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', marginRight: spacing.sm },
   thumbImage: { width: '100%', height: '100%' },
   cardBody: { flex: 1 },
-  cardTitle: { fontSize: typography.body, fontWeight: '700', color: colors.neutral },
+  cardTitle: { fontSize: typography.body, fontWeight: '700' },
   cardMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  cardMetaField: { fontSize: typography.label, color: colors.primary, fontWeight: '600' },
-  cardMetaDot: { fontSize: typography.label, color: colors.secondary },
-  cardMetaTime: { fontSize: typography.label, color: colors.secondary },
-  editZone: {
-    width: 64, alignItems: 'center', justifyContent: 'center', gap: 4,
-    backgroundColor: colors.primaryLight, borderLeftWidth: 1, borderLeftColor: colors.border,
-  },
-  editZoneText: { fontSize: 11, fontWeight: '700', color: colors.primary },
+  cardMetaField: { fontSize: typography.label, fontWeight: '600' },
+  cardMetaDot: { fontSize: typography.label },
+  cardMetaTime: { fontSize: typography.label },
+  editZone: { width: 64, alignItems: 'center', justifyContent: 'center', gap: 4, borderLeftWidth: 1 },
+  editZoneText: { fontSize: 11, fontWeight: '700' },
 });
