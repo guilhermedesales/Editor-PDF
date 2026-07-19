@@ -1,33 +1,80 @@
 {
   "expo": {
     "name": "PDF Studio",
-    "slug": "PDF-Studio",
+    "slug": "pdf-studio",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/icon.png",
+      "image": "./assets/logo.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FFFFFF"
     },
     "ios": {
       "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+      "foregroundImage": "./assets/logo.png",
+      "backgroundColor": "#E6F4FE"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.guilhermedesaales2026.pdfstudio",
+
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": [
+            "DEFAULT",
+            "BROWSABLE"
+          ],
+          "data": [
+            {
+              "mimeType": "application/pdf",
+              "scheme": "content"
+            },
+            {
+              "mimeType": "application/pdf",
+              "scheme": "file"
+            }
+          ]
+        },
+        {
+          "action": "SEND",
+          "category": [
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "mimeType": "application/pdf"
+            }
+          ]
+        },
+        {
+          "action": "SEND_MULTIPLE",
+          "category": [
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "mimeType": "application/pdf"
+            }
+          ]
+        }
+      ]
+
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-sharing"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "054bfc21-68e1-4e08-ad6b-42256b8ff894"
+      }
+    }
   }
 }
