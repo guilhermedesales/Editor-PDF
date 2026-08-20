@@ -17,9 +17,11 @@ import ZoomablePdfView from '../components/ZoomablePdfView';
 import FieldTypePicker from '../components/FieldTypePicker';
 import ToolSidebar, { EditorTool } from '../components/ToolSidebar';
 import TemplatePreviewModal from '../components/TemplatePreviewModal';
+import SpreadsheetLinkModal from '../components/SpreadsheetLinkModal';
 import { saveTemplate, getTemplateById } from '../services/templateStorage';
+import { getSpreadsheetByTemplateId, type SpreadsheetEntry } from '../services/spreadsheetsStorage';
 import type { FieldType, TemplateField } from '../types/template';
-import { Plus, ChevronLeft, FileText, Eye, Pencil } from 'lucide-react-native';
+import { Plus, ChevronLeft, FileText, Eye, Pencil, Table } from 'lucide-react-native';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -31,6 +33,11 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
   const templateId: string | undefined = route.params?.templateId;
   const insets = useSafeAreaInsets();
   const { colors } = useThemeStore();
+
+  // ID estável do template, gerado desde já mesmo se ainda não foi
+  // salvo — assim dá pra vincular uma planilha (que referencia esse
+  // ID) mesmo antes do primeiro "Salvar".
+  const [effectiveTemplateId] = useState(() => templateId ?? generateId());
 
   const {
     pdfUri, pageWidth, pageHeight, fields, selectedFieldId, templateName,
@@ -44,6 +51,8 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
   const [showNameModal, setShowNameModal] = useState(false);
   const [showFieldEditor, setShowFieldEditor] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [showSpreadsheetModal, setShowSpreadsheetModal] = useState(false);
+  const [linkedSpreadsheet, setLinkedSpreadsheet] = useState<SpreadsheetEntry | null>(null);
   const [zoomScale, setZoomScale] = useState(1);
   const [tool, setTool] = useState<EditorTool>('move');
   const [pendingAddPosition, setPendingAddPosition] = useState<{ x: number; y: number } | null>(null);
@@ -60,6 +69,10 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
       reset();
     }
   }, [templateId]);
+
+  useEffect(() => {
+    getSpreadsheetByTemplateId(effectiveTemplateId).then((s) => setLinkedSpreadsheet(s ?? null));
+  }, [effectiveTemplateId]);
 
   async function handlePickFile() {
     const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', copyToCacheDirectory: true });
@@ -153,7 +166,7 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
 
     const now = Date.now();
     await saveTemplate({
-      id: templateId ?? generateId(), name: templateName.trim(), pdfUri: renderedImage,
+      id: effectiveTemplateId, name: templateName.trim(), pdfUri: renderedImage,
       pageWidth, pageHeight, fields, createdAt: now, updatedAt: now,
     });
     navigation.goBack();
@@ -212,6 +225,18 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
             <Pressable style={[styles.previewButton, { backgroundColor: colors.primaryLight }]} onPress={() => setShowPreview(true)}>
               <Eye size={16} color={colors.primary} />
               <Text style={[styles.previewButtonText, { color: colors.primary }]}>Ver Prévia</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.previewButton, { backgroundColor: linkedSpreadsheet ? colors.primaryLight : colors.tertiary }]}
+              onPress={() => setShowSpreadsheetModal(true)}
+            >
+              <Table size={16} color={linkedSpreadsheet ? colors.primary : colors.secondary} />
+              <Text
+                style={[styles.previewButtonText, { color: linkedSpreadsheet ? colors.primary : colors.secondary }]}
+                numberOfLines={1}
+              >
+                {linkedSpreadsheet ? linkedSpreadsheet.name : 'Vincular Planilha'}
+              </Text>
             </Pressable>
           </View>
 
@@ -296,6 +321,23 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
           fields={fields}
         />
       )}
+
+      <SpreadsheetLinkModal
+        visible={showSpreadsheetModal}
+        templateId={effectiveTemplateId}
+        templateName={templateName}
+        fields={fields}
+        existingSpreadsheet={linkedSpreadsheet}
+        onClose={() => setShowSpreadsheetModal(false)}
+        onSaved={() => {
+          setShowSpreadsheetModal(false);
+          getSpreadsheetByTemplateId(effectiveTemplateId).then((s) => setLinkedSpreadsheet(s ?? null));
+        }}
+        onUnlink={() => {
+          setShowSpreadsheetModal(false);
+          setLinkedSpreadsheet(null);
+        }}
+      />
     </View>
   );
 }
@@ -320,10 +362,10 @@ const styles = StyleSheet.create({
   toolbarSave: { fontWeight: '700' },
   titlePressable: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center' },
   toolbarTitle: { fontSize: typography.body, fontWeight: '600', maxWidth: 180 },
-  previewButtonRow: { paddingHorizontal: spacing.md, paddingVertical: spacing.xs, alignItems: 'flex-start' },
+  previewButtonRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, alignItems: 'flex-start' },
   previewButton: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radius.full,
+    paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radius.full, maxWidth: '60%',
   },
   previewButtonText: { fontWeight: '700', fontSize: typography.label },
   pageWrapper: { alignItems: 'center', justifyContent: 'center' },

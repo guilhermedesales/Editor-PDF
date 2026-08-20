@@ -1,7 +1,7 @@
-// Aba "Arquivos": gerenciador dos PDFs conhecidos pelo app, agora com
-// pastas (estilo "Livros", "Contratos" etc, com ícone e cor
-// customizáveis). Na raiz aparecem as pastas + arquivos soltos; tocar
-// numa pasta entra nela mostrando só os arquivos daquela pasta.
+// Aba "Arquivos": gerenciador dos PDFs conhecidos pelo app, com pastas
+// (estilo "Livros", "Contratos" etc), e agora também das Planilhas
+// geradas pelos templates vinculados (aba separada, sem pastas — cada
+// planilha já pertence a um único template).
 
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, Pressable, Image, Modal, TextInput, Alert } from 'react-native';
@@ -9,7 +9,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Sharing from 'expo-sharing';
 import {
-  Folder, Search, Plus, MoreVertical, FileText, List, Grid2x2, Star, X,
+  Folder, Search, Plus, MoreVertical, FileText, FileSpreadsheet, List, Grid2x2, Star, X,
   Share2, Pencil, Trash2, Combine, Scissors, ChevronLeft, FolderPlus, FolderInput,
 } from 'lucide-react-native';
 import { useThemeStore } from '../store/useThemeStore';
@@ -21,11 +21,16 @@ import {
 import {
   getAllFolders, createFolder, updateFolder, deleteFolder, type PdfFolderEntry,
 } from '../services/pdfFoldersStorage';
+import {
+  getAllSpreadsheets, renameSpreadsheet, deleteSpreadsheet as deleteSpreadsheetEntry,
+  type SpreadsheetEntry,
+} from '../services/spreadsheetsStorage';
 import { pickAndImportPdf } from '../services/pdfFileIO';
 import FolderEditorModal, { FOLDER_ICON_MAP } from '../components/FolderEditorModal';
 
 type FilterTab = 'todos' | 'recentes' | 'favoritos';
 type ViewMode = 'list' | 'grid';
+type ContentType = 'pdfs' | 'sheets';
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -45,6 +50,8 @@ export default function FileScreen({ navigation }: any) {
   const { colors } = useThemeStore();
   const [files, setFiles] = useState<PdfFileEntry[]>([]);
   const [folders, setFolders] = useState<PdfFolderEntry[]>([]);
+  const [sheets, setSheets] = useState<SpreadsheetEntry[]>([]);
+  const [contentType, setContentType] = useState<ContentType>('pdfs');
   const [openFolderId, setOpenFolderId] = useState<string | null>(null);
   const [tab, setTab] = useState<FilterTab>('todos');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -56,6 +63,9 @@ export default function FileScreen({ navigation }: any) {
   const [showFolderEditor, setShowFolderEditor] = useState(false);
   const [editingFolder, setEditingFolder] = useState<PdfFolderEntry | null>(null);
   const [movingFile, setMovingFile] = useState<PdfFileEntry | null>(null);
+  const [sheetMenuFor, setSheetMenuFor] = useState<SpreadsheetEntry | null>(null);
+  const [renamingSheet, setRenamingSheet] = useState<SpreadsheetEntry | null>(null);
+  const [renameSheetText, setRenameSheetText] = useState('');
 
   useFocusEffect(
     useCallback(() => {
@@ -66,6 +76,7 @@ export default function FileScreen({ navigation }: any) {
   async function refresh() {
     setFiles(await getAllPdfFiles());
     setFolders(await getAllFolders());
+    setSheets(await getAllSpreadsheets());
   }
 
   async function handleAddFile() {
@@ -168,6 +179,39 @@ export default function FileScreen({ navigation }: any) {
     ]);
   }
 
+  async function handleShareSheet(item: SpreadsheetEntry) {
+    setSheetMenuFor(null);
+    const canShare = await Sharing.isAvailableAsync();
+    if (canShare) {
+      await Sharing.shareAsync(item.uri, {
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        dialogTitle: 'Compartilhar Planilha',
+      });
+    }
+  }
+
+  function handleStartRenameSheet(item: SpreadsheetEntry) {
+    setRenamingSheet(item);
+    setRenameSheetText(item.name);
+    setSheetMenuFor(null);
+  }
+
+  async function handleConfirmRenameSheet() {
+    if (renamingSheet && renameSheetText.trim()) {
+      await renameSpreadsheet(renamingSheet.id, renameSheetText.trim());
+      await refresh();
+    }
+    setRenamingSheet(null);
+  }
+
+  function handleDeleteSheet(item: SpreadsheetEntry) {
+    setSheetMenuFor(null);
+    Alert.alert('Excluir planilha', `Tem certeza que deseja excluir "${item.name}"? O template deixa de salvar dados automaticamente até vincular outra.`, [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Excluir', style: 'destructive', onPress: async () => { await deleteSpreadsheetEntry(item.id); refresh(); } },
+    ]);
+  }
+
   const currentFolder = folders.find((f) => f.id === openFolderId) ?? null;
 
   const filteredFiles = files
@@ -184,10 +228,14 @@ export default function FileScreen({ navigation }: any) {
     ? []
     : folders.filter((f) => !query.trim() || f.name.toLowerCase().includes(query.trim().toLowerCase()));
 
+  const filteredSheets = sheets
+    .filter((s) => !query.trim() || s.name.toLowerCase().includes(query.trim().toLowerCase()))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        {openFolderId ? (
+        {contentType === 'pdfs' && openFolderId ? (
           <Pressable onPress={() => setOpenFolderId(null)} hitSlop={8} style={styles.backButton}>
             <ChevronLeft size={22} color={colors.primary} />
           </Pressable>
@@ -197,9 +245,9 @@ export default function FileScreen({ navigation }: any) {
           </View>
         )}
         <Text style={[styles.headerTitle, { color: colors.primary }]} numberOfLines={1}>
-          {currentFolder ? currentFolder.name : 'Arquivos'}
+          {contentType === 'sheets' ? 'Planilhas' : currentFolder ? currentFolder.name : 'Arquivos'}
         </Text>
-        {currentFolder && (
+        {contentType === 'pdfs' && currentFolder && (
           <Pressable hitSlop={8} onPress={() => handleEditFolder(currentFolder)} style={{ marginRight: spacing.sm }}>
             <Pencil size={18} color={colors.secondary} />
           </Pressable>
@@ -209,12 +257,29 @@ export default function FileScreen({ navigation }: any) {
         </Pressable>
       </View>
 
+      <View style={styles.contentTypeRow}>
+        <Pressable
+          style={[styles.contentTypePill, { backgroundColor: colors.tertiary }, contentType === 'pdfs' && { backgroundColor: colors.primaryLight }]}
+          onPress={() => setContentType('pdfs')}
+        >
+          <FileText size={14} color={contentType === 'pdfs' ? colors.primary : colors.secondary} />
+          <Text style={[styles.contentTypeText, { color: contentType === 'pdfs' ? colors.primary : colors.secondary }]}>PDFs</Text>
+        </Pressable>
+        <Pressable
+          style={[styles.contentTypePill, { backgroundColor: colors.tertiary }, contentType === 'sheets' && { backgroundColor: colors.primaryLight }]}
+          onPress={() => setContentType('sheets')}
+        >
+          <FileSpreadsheet size={14} color={contentType === 'sheets' ? colors.primary : colors.secondary} />
+          <Text style={[styles.contentTypeText, { color: contentType === 'sheets' ? colors.primary : colors.secondary }]}>Planilhas</Text>
+        </Pressable>
+      </View>
+
       {showSearch && (
         <View style={[styles.searchBox, { backgroundColor: colors.tertiary }]}>
           <Search size={16} color={colors.secondary} />
           <TextInput
             style={[styles.searchInput, { color: colors.neutral }]}
-            placeholder="Buscar arquivos..."
+            placeholder={contentType === 'sheets' ? 'Buscar planilhas...' : 'Buscar arquivos...'}
             placeholderTextColor={colors.secondary}
             value={query}
             onChangeText={setQuery}
@@ -228,119 +293,150 @@ export default function FileScreen({ navigation }: any) {
         </View>
       )}
 
-      <View style={styles.filterRow}>
-        <View style={styles.tabsWrap}>
-          {(
-            [
-              { key: 'todos' as FilterTab, label: 'Todos' },
-              { key: 'recentes' as FilterTab, label: 'Recentes' },
-              { key: 'favoritos' as FilterTab, label: 'Favoritos' },
-            ]
-          ).map(({ key, label }) => (
+      {contentType === 'pdfs' && (
+        <View style={styles.filterRow}>
+          <View style={styles.tabsWrap}>
+            {(
+              [
+                { key: 'todos' as FilterTab, label: 'Todos' },
+                { key: 'recentes' as FilterTab, label: 'Recentes' },
+                { key: 'favoritos' as FilterTab, label: 'Favoritos' },
+              ]
+            ).map(({ key, label }) => (
+              <Pressable
+                key={key}
+                style={[
+                  styles.tabPill,
+                  { backgroundColor: colors.tertiary },
+                  tab === key && { backgroundColor: colors.primaryLight },
+                ]}
+                onPress={() => setTab(key)}
+              >
+                <Text style={[styles.tabPillText, { color: tab === key ? colors.primary : colors.secondary }]}>{label}</Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={[styles.viewToggle, { backgroundColor: colors.tertiary }]}>
             <Pressable
-              key={key}
-              style={[
-                styles.tabPill,
-                { backgroundColor: colors.tertiary },
-                tab === key && { backgroundColor: colors.primaryLight },
-              ]}
-              onPress={() => setTab(key)}
+              style={[styles.viewToggleButton, viewMode === 'list' && { backgroundColor: colors.primary }]}
+              onPress={() => setViewMode('list')}
             >
-              <Text style={[styles.tabPillText, { color: tab === key ? colors.primary : colors.secondary }]}>{label}</Text>
+              <List size={16} color={viewMode === 'list' ? colors.white : colors.secondary} />
             </Pressable>
-          ))}
+            <Pressable
+              style={[styles.viewToggleButton, viewMode === 'grid' && { backgroundColor: colors.primary }]}
+              onPress={() => setViewMode('grid')}
+            >
+              <Grid2x2 size={16} color={viewMode === 'grid' ? colors.white : colors.secondary} />
+            </Pressable>
+          </View>
         </View>
+      )}
 
-        <View style={[styles.viewToggle, { backgroundColor: colors.tertiary }]}>
-          <Pressable
-            style={[styles.viewToggleButton, viewMode === 'list' && { backgroundColor: colors.primary }]}
-            onPress={() => setViewMode('list')}
-          >
-            <List size={16} color={viewMode === 'list' ? colors.white : colors.secondary} />
-          </Pressable>
-          <Pressable
-            style={[styles.viewToggleButton, viewMode === 'grid' && { backgroundColor: colors.primary }]}
-            onPress={() => setViewMode('grid')}
-          >
-            <Grid2x2 size={16} color={viewMode === 'grid' ? colors.white : colors.secondary} />
-          </Pressable>
-        </View>
-      </View>
-
-      <FlatList
-        key={`${viewMode}-${openFolderId ?? 'root'}`}
-        data={filteredFiles}
-        keyExtractor={(item) => item.id}
-        numColumns={viewMode === 'grid' ? 2 : 1}
-        columnWrapperStyle={viewMode === 'grid' ? { gap: spacing.sm } : undefined}
-        contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: 100, gap: spacing.sm }}
-        ListHeaderComponent={
-          !openFolderId && visibleFolders.length > 0 ? (
-            <View style={styles.foldersSection}>
-              <Text style={[styles.foldersLabel, { color: colors.secondary }]}>PASTAS</Text>
-              <View style={styles.foldersGrid}>
-                {visibleFolders.map((folder) => (
-                  <FolderCard
-                    key={folder.id}
-                    folder={folder}
-                    count={files.filter((f) => f.folderId === folder.id).length}
-                    colors={colors}
-                    onPress={() => setOpenFolderId(folder.id)}
-                    onLongPress={() => handleEditFolder(folder)}
-                  />
-                ))}
+      {contentType === 'pdfs' ? (
+        <FlatList
+          key={`${viewMode}-${openFolderId ?? 'root'}`}
+          data={filteredFiles}
+          keyExtractor={(item) => item.id}
+          numColumns={viewMode === 'grid' ? 2 : 1}
+          columnWrapperStyle={viewMode === 'grid' ? { gap: spacing.sm } : undefined}
+          contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: 100, gap: spacing.sm }}
+          ListHeaderComponent={
+            !openFolderId && visibleFolders.length > 0 ? (
+              <View style={styles.foldersSection}>
+                <Text style={[styles.foldersLabel, { color: colors.secondary }]}>PASTAS</Text>
+                <View style={styles.foldersGrid}>
+                  {visibleFolders.map((folder) => (
+                    <FolderCard
+                      key={folder.id}
+                      folder={folder}
+                      count={files.filter((f) => f.folderId === folder.id).length}
+                      colors={colors}
+                      onPress={() => setOpenFolderId(folder.id)}
+                      onLongPress={() => handleEditFolder(folder)}
+                    />
+                  ))}
+                </View>
+                {filteredFiles.length > 0 && <Text style={[styles.foldersLabel, { color: colors.secondary, marginTop: spacing.sm }]}>ARQUIVOS</Text>}
               </View>
-              {filteredFiles.length > 0 && <Text style={[styles.foldersLabel, { color: colors.secondary, marginTop: spacing.sm }]}>ARQUIVOS</Text>}
-            </View>
-          ) : null
-        }
-        ListEmptyComponent={
-          !openFolderId && visibleFolders.length > 0 ? null : (
+            ) : null
+          }
+          ListEmptyComponent={
+            !openFolderId && visibleFolders.length > 0 ? null : (
+              <View style={styles.emptyState}>
+                <View style={[styles.emptyIconWrap, { backgroundColor: colors.tertiary }]}>
+                  <FileText size={28} color={colors.secondary} />
+                </View>
+                <Text style={[styles.emptyTitle, { color: colors.neutral }]}>
+                  {tab === 'favoritos' ? 'Nenhum favorito ainda' : 'Nenhum arquivo por aqui'}
+                </Text>
+                <Text style={[styles.emptyText, { color: colors.secondary }]}>
+                  {tab === 'favoritos'
+                    ? 'Toque na estrela de um arquivo pra fixá-lo aqui.'
+                    : 'Toque em "+" pra importar um PDF, ou gere um pelas Ferramentas.'}
+                </Text>
+              </View>
+            )
+          }
+          renderItem={({ item }) =>
+            viewMode === 'list' ? (
+              <FileRowCard
+                item={item}
+                colors={colors}
+                onOpen={() => openViewer(item)}
+                onToggleFavorite={() => handleToggleFavorite(item.id)}
+                onMenu={() => setMenuFor(item)}
+              />
+            ) : (
+              <FileGridCard
+                item={item}
+                colors={colors}
+                onOpen={() => openViewer(item)}
+                onToggleFavorite={() => handleToggleFavorite(item.id)}
+              />
+            )
+          }
+        />
+      ) : (
+        <FlatList
+          data={filteredSheets}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingHorizontal: spacing.md, paddingBottom: 100, gap: spacing.sm }}
+          ListEmptyComponent={
             <View style={styles.emptyState}>
               <View style={[styles.emptyIconWrap, { backgroundColor: colors.tertiary }]}>
-                <FileText size={28} color={colors.secondary} />
+                <FileSpreadsheet size={28} color={colors.secondary} />
               </View>
-              <Text style={[styles.emptyTitle, { color: colors.neutral }]}>
-                {tab === 'favoritos' ? 'Nenhum favorito ainda' : 'Nenhum arquivo por aqui'}
-              </Text>
+              <Text style={[styles.emptyTitle, { color: colors.neutral }]}>Nenhuma planilha ainda</Text>
               <Text style={[styles.emptyText, { color: colors.secondary }]}>
-                {tab === 'favoritos'
-                  ? 'Toque na estrela de um arquivo pra fixá-lo aqui.'
-                  : 'Toque em "+" pra importar um PDF, ou gere um pelas Ferramentas.'}
+                Vincule um template a uma planilha na tela de criação do template.
               </Text>
             </View>
-          )
-        }
-        renderItem={({ item }) =>
-          viewMode === 'list' ? (
-            <FileRowCard
+          }
+          renderItem={({ item }) => (
+            <SheetRowCard
               item={item}
               colors={colors}
-              onOpen={() => openViewer(item)}
-              onToggleFavorite={() => handleToggleFavorite(item.id)}
-              onMenu={() => setMenuFor(item)}
+              onOpen={() => handleShareSheet(item)}
+              onMenu={() => setSheetMenuFor(item)}
             />
-          ) : (
-            <FileGridCard
-              item={item}
-              colors={colors}
-              onOpen={() => openViewer(item)}
-              onToggleFavorite={() => handleToggleFavorite(item.id)}
-            />
-          )
-        }
-      />
+          )}
+        />
+      )}
 
-      <View style={styles.fabColumn}>
-        {!openFolderId && (
-          <Pressable style={[styles.fabSecondary, { backgroundColor: colors.white, borderColor: colors.border }]} onPress={handleNewFolder}>
-            <FolderPlus size={22} color={colors.primary} />
+      {contentType === 'pdfs' && (
+        <View style={styles.fabColumn}>
+          {!openFolderId && (
+            <Pressable style={[styles.fabSecondary, { backgroundColor: colors.white, borderColor: colors.border }]} onPress={handleNewFolder}>
+              <FolderPlus size={22} color={colors.primary} />
+            </Pressable>
+          )}
+          <Pressable style={[styles.fab, { backgroundColor: colors.primary }]} onPress={handleAddFile}>
+            <Plus size={24} color={colors.white} />
           </Pressable>
-        )}
-        <Pressable style={[styles.fab, { backgroundColor: colors.primary }]} onPress={handleAddFile}>
-          <Plus size={24} color={colors.white} />
-        </Pressable>
-      </View>
+        </View>
+      )}
 
       <Modal visible={!!menuFor} transparent animationType="fade" onRequestClose={() => setMenuFor(null)}>
         <Pressable style={styles.modalOverlay} onPress={() => setMenuFor(null)}>
@@ -352,6 +448,17 @@ export default function FileScreen({ navigation }: any) {
             <ActionRow icon={Combine} label="Usar em Juntar PDFs" onPress={() => handleUseIn('MergePdf')} colors={colors} />
             <ActionRow icon={Scissors} label="Usar em Dividir PDF" onPress={() => handleUseIn('SplitPdf')} colors={colors} />
             <ActionRow icon={Trash2} label="Excluir" danger onPress={() => menuFor && handleDelete(menuFor)} colors={colors} />
+          </View>
+        </Pressable>
+      </Modal>
+
+      <Modal visible={!!sheetMenuFor} transparent animationType="fade" onRequestClose={() => setSheetMenuFor(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setSheetMenuFor(null)}>
+          <View style={[styles.actionSheet, { backgroundColor: colors.white }]}>
+            <Text style={[styles.actionSheetTitle, { color: colors.neutral }]} numberOfLines={1}>{sheetMenuFor?.name}</Text>
+            <ActionRow icon={Share2} label="Compartilhar / Abrir" onPress={() => sheetMenuFor && handleShareSheet(sheetMenuFor)} colors={colors} />
+            <ActionRow icon={Pencil} label="Renomear" onPress={() => sheetMenuFor && handleStartRenameSheet(sheetMenuFor)} colors={colors} />
+            <ActionRow icon={Trash2} label="Excluir" danger onPress={() => sheetMenuFor && handleDeleteSheet(sheetMenuFor)} colors={colors} />
           </View>
         </Pressable>
       </Modal>
@@ -371,6 +478,28 @@ export default function FileScreen({ navigation }: any) {
                 <Text style={{ color: colors.secondary, fontWeight: '700' }}>Cancelar</Text>
               </Pressable>
               <Pressable style={[styles.renameButton, { backgroundColor: colors.primary }]} onPress={handleConfirmRename}>
+                <Text style={{ color: colors.white, fontWeight: '700' }}>Salvar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={!!renamingSheet} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.renameCard, { backgroundColor: colors.white }]}>
+            <Text style={[styles.actionSheetTitle, { color: colors.neutral }]}>Renomear planilha</Text>
+            <TextInput
+              autoFocus
+              style={[styles.renameInput, { borderColor: colors.border, color: colors.neutral }]}
+              value={renameSheetText}
+              onChangeText={setRenameSheetText}
+            />
+            <View style={{ flexDirection: 'row', gap: spacing.sm, marginTop: spacing.sm }}>
+              <Pressable style={[styles.renameButton, { backgroundColor: colors.tertiary }]} onPress={() => setRenamingSheet(null)}>
+                <Text style={{ color: colors.secondary, fontWeight: '700' }}>Cancelar</Text>
+              </Pressable>
+              <Pressable style={[styles.renameButton, { backgroundColor: colors.primary }]} onPress={handleConfirmRenameSheet}>
                 <Text style={{ color: colors.white, fontWeight: '700' }}>Salvar</Text>
               </Pressable>
             </View>
@@ -479,12 +608,34 @@ function FileGridCard({ item, colors, onOpen, onToggleFavorite }: any) {
   );
 }
 
+function SheetRowCard({ item, colors, onOpen, onMenu }: { item: SpreadsheetEntry; colors: any; onOpen: () => void; onMenu: () => void }) {
+  return (
+    <Pressable style={[styles.rowCard, { backgroundColor: colors.tertiary }]} onPress={onOpen}>
+      <View style={[styles.rowThumb, { backgroundColor: colors.primaryLight }]}>
+        <FileSpreadsheet size={20} color={colors.primary} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.rowTitle, { color: colors.neutral }]} numberOfLines={1}>{item.name}</Text>
+        <Text style={[styles.rowMeta, { color: colors.secondary }]}>
+          {item.rows.length} linha{item.rows.length === 1 ? '' : 's'} • {formatDate(item.updatedAt)}
+        </Text>
+      </View>
+      <Pressable hitSlop={8} onPress={onMenu}>
+        <MoreVertical size={18} color={colors.secondary} />
+      </Pressable>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.sm },
   backButton: { marginRight: -4 },
   headerIconWrap: { width: 30, height: 30, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, fontSize: 20, fontWeight: '700' },
+  contentTypeRow: { flexDirection: 'row', gap: spacing.xs, paddingHorizontal: spacing.md, marginBottom: spacing.sm },
+  contentTypePill: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radius.full },
+  contentTypeText: { fontSize: typography.label, fontWeight: '700' },
   searchBox: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginHorizontal: spacing.md, marginBottom: spacing.sm, borderRadius: radius.md, paddingHorizontal: spacing.sm, paddingVertical: 8 },
   searchInput: { flex: 1, fontSize: typography.body },
   filterRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.md, marginBottom: spacing.md },

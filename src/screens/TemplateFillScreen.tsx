@@ -10,10 +10,11 @@ import ViewShot from 'react-native-view-shot';
 import { PDFDocument } from 'pdf-lib';
 import { File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, Table } from 'lucide-react-native';
 import { spacing, radius, typography } from '../constants/theme';
 import { useThemeStore } from '../store/useThemeStore';
 import { getTemplateById, saveTemplate } from '../services/templateStorage';
+import { getSpreadsheetByTemplateId, appendSpreadsheetRow, type SpreadsheetEntry } from '../services/spreadsheetsStorage';
 import { currencyToWords, plainNumberToWords } from '../utils/numberToWords';
 import { applyMaskFor, maskFullDate, maskDayOrMonth, maskYear } from '../utils/masks';
 import { DEFAULT_DATE_CONFIG, formatDateValue, placeholderForDateConfig } from '../utils/dateFormat';
@@ -69,8 +70,9 @@ function placeholderForField(field: TemplateField): string {
   }
 }
 
-// Resolve o texto FINAL que aparece no PDF pra cada campo, já
-// aplicando: extenso, vínculo de valor, formato de data, símbolo R$.
+// Resolve o texto FINAL que aparece no PDF (e na planilha) pra cada
+// campo, já aplicando: extenso, vínculo de valor, formato de data,
+// símbolo R$.
 function resolveFinalValue(
   field: TemplateField,
   values: Record<string, string>,
@@ -108,6 +110,8 @@ export default function TemplateFillScreen({ route, navigation }: any) {
   const [fileName, setFileName] = useState('');
   const [showNameModal, setShowNameModal] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [linkedSpreadsheet, setLinkedSpreadsheet] = useState<SpreadsheetEntry | null>(null);
+  const [saveToSpreadsheet, setSaveToSpreadsheet] = useState(true);
 
   useEffect(() => {
     getTemplateById(templateId).then((t) => {
@@ -119,6 +123,10 @@ export default function TemplateFillScreen({ route, navigation }: any) {
         navigation.goBack();
       }
     });
+  }, [templateId]);
+
+  useEffect(() => {
+    getSpreadsheetByTemplateId(templateId).then((s) => setLinkedSpreadsheet(s ?? null));
   }, [templateId]);
 
   useEffect(() => {
@@ -152,6 +160,22 @@ export default function TemplateFillScreen({ route, navigation }: any) {
     setValues((prev) => ({ ...prev, [fieldId]: text }));
   }
 
+  // Monta a linha que vai pra planilha, respeitando a config de
+  // colunas definida no SpreadsheetLinkModal (coluna fixa "Data/Hora"
+  // + uma coluna por campo mapeado).
+  function buildSpreadsheetRow(tpl: Template, sheet: SpreadsheetEntry): Record<string, string> {
+    const row: Record<string, string> = {};
+    sheet.columns.forEach((col) => {
+      if (col.fieldId === null) {
+        row[col.id] = new Date().toLocaleString('pt-BR');
+        return;
+      }
+      const field = tpl.fields.find((f) => f.id === col.fieldId);
+      row[col.id] = field ? resolveFinalValue(field, values, tpl.fields) : '';
+    });
+    return row;
+  }
+
   async function handleConfirmGenerate() {
     setShowNameModal(false);
     setGenerating(true);
@@ -182,6 +206,11 @@ export default function TemplateFillScreen({ route, navigation }: any) {
           autoIncrementCounter: usedRaw + 1,
           updatedAt: Date.now(),
         });
+      }
+
+      if (linkedSpreadsheet && saveToSpreadsheet) {
+        const row = buildSpreadsheetRow(template!, linkedSpreadsheet);
+        await appendSpreadsheetRow(linkedSpreadsheet.id, row);
       }
 
       const canShare = await Sharing.isAvailableAsync();
@@ -311,6 +340,23 @@ export default function TemplateFillScreen({ route, navigation }: any) {
               placeholder="Ex: Contrato João da Silva"
               placeholderTextColor={colors.secondary}
             />
+
+            {linkedSpreadsheet && (
+              <Pressable style={styles.spreadsheetCheckRow} onPress={() => setSaveToSpreadsheet((v) => !v)}>
+                <View
+                  style={[
+                    styles.checkbox,
+                    { borderColor: colors.border },
+                    saveToSpreadsheet && { backgroundColor: colors.primary, borderColor: colors.primary },
+                  ]}
+                />
+                <Table size={16} color={colors.secondary} />
+                <Text style={[styles.spreadsheetCheckText, { color: colors.neutral }]} numberOfLines={2}>
+                  Salvar também na planilha "{linkedSpreadsheet.name}"
+                </Text>
+              </Pressable>
+            )}
+
             <Pressable style={[styles.confirmButton, { backgroundColor: colors.primary }]} onPress={handleConfirmGenerate}>
               <Text style={styles.confirmButtonText}>Gerar e Compartilhar</Text>
             </Pressable>
@@ -365,6 +411,9 @@ const styles = StyleSheet.create({
   modalSheet: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md },
   modalTitle: { fontSize: typography.body, fontWeight: '700', marginBottom: spacing.md },
   nameInput: { borderWidth: 1, borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.md },
+  spreadsheetCheckRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.md },
+  checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2 },
+  spreadsheetCheckText: { flex: 1, fontSize: typography.label, fontWeight: '600' },
   confirmButton: { paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center' },
   confirmButtonText: { color: '#fff', fontWeight: '700' },
   modalCancel: { textAlign: 'center', marginTop: spacing.sm, paddingVertical: spacing.sm },
