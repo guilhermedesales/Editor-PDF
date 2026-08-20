@@ -7,7 +7,7 @@ import { spacing, radius, typography } from '../constants/theme';
 import { TOOL_TUTORIALS, type ToolTutorial } from '../constants/tutorials';
 import TutorialModal from '../components/TutorialModal';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
