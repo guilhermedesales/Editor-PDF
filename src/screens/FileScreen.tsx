@@ -2,12 +2,20 @@
 // (estilo "Livros", "Contratos" etc), e agora também das Planilhas
 // geradas pelos templates vinculados (aba separada, sem pastas — cada
 // planilha já pertence a um único template).
+//
+// Alteração: tocar numa planilha agora dispara ACTION_VIEW (Android),
+// abrindo o seletor "Abrir com..." (Google Sheets, Excel etc) em vez
+// do share sheet de "Enviar para". No iOS, usa o share sheet nativo,
+// que já mostra "Abrir em..." como opção. Compartilhar continua
+// disponível separadamente no menu de "⋮" de cada planilha.
 
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, Pressable, Image, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, Image, Modal, TextInput, Alert, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Sharing from 'expo-sharing';
+import * as IntentLauncher from 'expo-intent-launcher';
+import * as FileSystem from 'expo-file-system/legacy';
 import {
   Folder, Search, Plus, MoreVertical, FileText, FileSpreadsheet, List, Grid2x2, Star, X,
   Share2, Pencil, Trash2, Combine, Scissors, ChevronLeft, FolderPlus, FolderInput,
@@ -31,6 +39,8 @@ import FolderEditorModal, { FOLDER_ICON_MAP } from '../components/FolderEditorMo
 type FilterTab = 'todos' | 'recentes' | 'favoritos';
 type ViewMode = 'list' | 'grid';
 type ContentType = 'pdfs' | 'sheets';
+
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 function formatSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -179,12 +189,40 @@ export default function FileScreen({ navigation }: any) {
     ]);
   }
 
+  // Abre a planilha com ACTION_VIEW no Android (mostra "Abrir com...":
+  // Google Sheets, Excel etc). No iOS usa o share sheet nativo, que já
+  // exibe "Abrir em..." como uma das opções.
+  async function handleOpenSheetWith(item: SpreadsheetEntry) {
+    setSheetMenuFor(null);
+    if (Platform.OS === 'android') {
+      try {
+        const contentUri = await FileSystem.getContentUriAsync(item.uri);
+        await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+          data: contentUri,
+          flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+          type: XLSX_MIME,
+        });
+      } catch (err) {
+        Alert.alert('Nenhum app encontrado', 'Instale um app de planilhas (Google Sheets, Excel etc) pra abrir esse arquivo.');
+      }
+    } else {
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(item.uri, {
+          mimeType: XLSX_MIME,
+          dialogTitle: 'Abrir planilha',
+          UTI: 'org.openxmlformats.spreadsheetml.sheet',
+        });
+      }
+    }
+  }
+
   async function handleShareSheet(item: SpreadsheetEntry) {
     setSheetMenuFor(null);
     const canShare = await Sharing.isAvailableAsync();
     if (canShare) {
       await Sharing.shareAsync(item.uri, {
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        mimeType: XLSX_MIME,
         dialogTitle: 'Compartilhar Planilha',
       });
     }
@@ -418,7 +456,7 @@ export default function FileScreen({ navigation }: any) {
             <SheetRowCard
               item={item}
               colors={colors}
-              onOpen={() => handleShareSheet(item)}
+              onOpen={() => handleOpenSheetWith(item)}
               onMenu={() => setSheetMenuFor(item)}
             />
           )}
@@ -456,7 +494,8 @@ export default function FileScreen({ navigation }: any) {
         <Pressable style={styles.modalOverlay} onPress={() => setSheetMenuFor(null)}>
           <View style={[styles.actionSheet, { backgroundColor: colors.white }]}>
             <Text style={[styles.actionSheetTitle, { color: colors.neutral }]} numberOfLines={1}>{sheetMenuFor?.name}</Text>
-            <ActionRow icon={Share2} label="Compartilhar / Abrir" onPress={() => sheetMenuFor && handleShareSheet(sheetMenuFor)} colors={colors} />
+            <ActionRow icon={FileSpreadsheet} label="Abrir com..." onPress={() => sheetMenuFor && handleOpenSheetWith(sheetMenuFor)} colors={colors} />
+            <ActionRow icon={Share2} label="Compartilhar" onPress={() => sheetMenuFor && handleShareSheet(sheetMenuFor)} colors={colors} />
             <ActionRow icon={Pencil} label="Renomear" onPress={() => sheetMenuFor && handleStartRenameSheet(sheetMenuFor)} colors={colors} />
             <ActionRow icon={Trash2} label="Excluir" danger onPress={() => sheetMenuFor && handleDeleteSheet(sheetMenuFor)} colors={colors} />
           </View>
