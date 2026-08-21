@@ -42,6 +42,24 @@ function sanitizeFileName(name: string) {
   return name.trim().replace(/[\\/:*?"<>|]/g, '').slice(0, 80) || 'documento';
 }
 
+function initialValuesForTemplate(template: Template, existingValues: Record<string, string> = {}): Record<string, string> {
+  const defaults: Record<string, string> = {};
+  template.fields.forEach((field) => {
+    if (field.type === 'textoFixo') {
+      defaults[field.id] = field.defaultText ?? '';
+    }
+    if (field.type === 'autoIncremento') {
+      const config = field.autoIncrementConfig ?? DEFAULT_AUTO_INCREMENT_CONFIG;
+      const nextRaw = nextAutoIncrementNumber(template, config);
+      defaults[field.id] = formatAutoIncrement(nextRaw, config);
+    }
+    if (field.type === 'data' && field.dateConfig?.auto) {
+      defaults[field.id] = rawValueFromDate(field.dateConfig);
+    }
+  });
+  return { ...defaults, ...existingValues };
+}
+
 // Aplica a máscara certa conforme o tipo, enquanto o usuário digita.
 function maskForField(field: TemplateField, raw: string): string {
   if (field.type === 'cpf') return applyMaskFor('cpf', raw);
@@ -123,44 +141,21 @@ export default function TemplateFillScreen({ route, navigation }: any) {
     getTemplateById(templateId).then((t) => {
       if (t) {
         const session = getSession(templateId);
+        const nextValues = initialValuesForTemplate(t, session?.values);
         setTemplate(t);
-        setValues(session?.values ?? {});
+        setValues(nextValues);
+        persistValues(t.id, nextValues);
         setFileName(session?.fileName ?? t.name);
       } else {
         Alert.alert('Template não encontrado');
         navigation.goBack();
       }
     });
-  }, [templateId, getSession]);
+  }, [templateId, getSession, persistValues]);
 
   useEffect(() => {
     getSpreadsheetByTemplateId(templateId).then((s) => setLinkedSpreadsheet(s ?? null));
   }, [templateId]);
-
-  useEffect(() => {
-    if (!template) return;
-    const autoValues: Record<string, string> = {};
-    template.fields.forEach((f) => {
-      if (f.type === 'textoFixo') {
-        autoValues[f.id] = f.defaultText ?? '';
-      }
-      if (f.type === 'autoIncremento') {
-        const config = f.autoIncrementConfig ?? DEFAULT_AUTO_INCREMENT_CONFIG;
-        const nextRaw = nextAutoIncrementNumber(template, config);
-        autoValues[f.id] = formatAutoIncrement(nextRaw, config);
-      }
-      if (f.type === 'data' && f.dateConfig?.auto) {
-        autoValues[f.id] = rawValueFromDate(f.dateConfig);
-      }
-    });
-    if (Object.keys(autoValues).length > 0) {
-      setValues((prev) => {
-        const next = { ...autoValues, ...prev };
-        persistValues(template.id, next);
-        return next;
-      });
-    }
-  }, [template, persistValues]);
 
   if (!template) {
     return (
