@@ -65,6 +65,7 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
   const [gridSize, setGridSize] = useState(10);
   const [showLayersModal, setShowLayersModal] = useState(false);
   const [manualTutorial, setManualTutorial] = useState(false);
+  const [showToolsMenu, setShowToolsMenu] = useState(false);
 
   useEffect(() => {
     if (templateId) {
@@ -235,6 +236,18 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
     if (multiSelectMode) toggleFieldSelection(id);
     else selectField(id);
   }
+
+  function openTool(action: () => void) {
+    setShowToolsMenu(false);
+    action();
+  }
+
+  function toggleMultiSelectMode() {
+    setMultiSelectMode((enabled) => {
+      if (enabled) selectField(selectedFieldId);
+      return !enabled;
+    });
+  }
   function handleEditField(id: string) { selectField(id); setShowFieldEditor(true); }
 
   function handleDeleteFieldDirect(id: string) {
@@ -305,92 +318,66 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
         </>
       ) : (
         <>
-          <View style={[styles.toolbar, { borderBottomColor: colors.border }]}>
-            <Pressable onPress={() => navigation.goBack()}>
-              <Text style={[styles.toolbarAction, { color: colors.secondary }]}>Cancelar</Text>
+          <View style={[styles.toolbar, { borderBottomColor: colors.border }]}> 
+            <Pressable style={styles.headerIconButton} onPress={() => navigation.goBack()} accessibilityLabel="Voltar">
+              <ChevronLeft size={22} color={colors.secondary} />
             </Pressable>
             <Pressable style={styles.titlePressable} onPress={() => setShowNameModal(true)}>
               <Text style={[styles.toolbarTitle, { color: colors.neutral }]} numberOfLines={1}>{templateName || 'Novo Template'}</Text>
               <Pencil size={13} color={colors.secondary} />
             </Pressable>
-            <Pressable onPress={handleSave}>
-              <Text style={[styles.toolbarAction, styles.toolbarSave, { color: colors.primary }]}>Salvar</Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.previewButtonRow}>
-            <Pressable style={[styles.previewButton, { backgroundColor: colors.primaryLight }]} onPress={() => setShowPreview(true)}>
-              <Eye size={16} color={colors.primary} />
-              <Text style={[styles.previewButtonText, { color: colors.primary }]}>Ver Prévia</Text>
-            </Pressable>
-
-            <View style={styles.historyButtons}>
+            <View style={styles.headerActions}>
               <Pressable
-                style={[styles.historyButton, { backgroundColor: colors.tertiary }, pastFields.length === 0 && styles.historyButtonDisabled]}
+                style={[styles.headerIconButton, { backgroundColor: colors.tertiary }, pastFields.length === 0 && styles.historyButtonDisabled]}
                 onPress={undo}
                 disabled={pastFields.length === 0}
+                accessibilityLabel="Desfazer"
               >
-                <Undo2 size={16} color={pastFields.length === 0 ? colors.secondary : colors.primary} />
+                <Undo2 size={18} color={pastFields.length === 0 ? colors.secondary : colors.primary} />
               </Pressable>
               <Pressable
-                style={[styles.historyButton, { backgroundColor: colors.tertiary }, futureFields.length === 0 && styles.historyButtonDisabled]}
+                style={[styles.headerIconButton, { backgroundColor: colors.tertiary }, futureFields.length === 0 && styles.historyButtonDisabled]}
                 onPress={redo}
                 disabled={futureFields.length === 0}
+                accessibilityLabel="Refazer"
               >
-                <Redo2 size={16} color={futureFields.length === 0 ? colors.secondary : colors.primary} />
+                <Redo2 size={18} color={futureFields.length === 0 ? colors.secondary : colors.primary} />
+              </Pressable>
+              <Pressable
+                style={[styles.headerIconButton, { backgroundColor: colors.tertiary }]}
+                onPress={() => setShowToolsMenu(true)}
+                accessibilityLabel="Ferramentas do editor"
+              >
+                <MoreVertical size={20} color={colors.primary} />
+              </Pressable>
+              <Pressable style={styles.saveButtonCompact} onPress={handleSave}>
+                <Text style={[styles.toolbarAction, styles.toolbarSave, { color: colors.primary }]}>Salvar</Text>
               </Pressable>
             </View>
-
-            <Pressable style={[styles.historyButton, { backgroundColor: colors.tertiary }]} onPress={() => setManualTutorial(true)}>
-              <HelpCircle size={16} color={colors.primary} />
-            </Pressable>
-
-            <Pressable
-              style={[styles.previewButton, { backgroundColor: multiSelectMode ? colors.primaryLight : colors.tertiary }]}
-              onPress={() => setMultiSelectMode((v) => !v)}
-            >
-              <CheckSquare size={16} color={multiSelectMode ? colors.primary : colors.secondary} />
-              <Text style={[styles.previewButtonText, { color: multiSelectMode ? colors.primary : colors.secondary }]}>
-                {selectedFieldIds.length > 1 ? `${selectedFieldIds.length} selecionados` : 'Multi'}
-              </Text>
-            </Pressable>
-            <Pressable
-              style={[styles.previewButton, { backgroundColor: selectedFieldIds.length >= 2 ? colors.primaryLight : colors.tertiary, opacity: selectedFieldIds.length >= 2 ? 1 : 0.5 }]}
-              onPress={() => setShowAlignModal(true)}
-              disabled={selectedFieldIds.length < 2}
-            >
-              <AlignCenter size={16} color={selectedFieldIds.length >= 2 ? colors.primary : colors.secondary} />
-              <Text style={[styles.previewButtonText, { color: selectedFieldIds.length >= 2 ? colors.primary : colors.secondary }]}>Alinhar</Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.previewButton, { backgroundColor: showGrid || snapToGrid ? colors.primaryLight : colors.tertiary }]}
-              onPress={() => setShowGridModal(true)}
-            >
-              <Grid3X3 size={16} color={showGrid || snapToGrid ? colors.primary : colors.secondary} />
-              <Text style={[styles.previewButtonText, { color: showGrid || snapToGrid ? colors.primary : colors.secondary }]}>Grade</Text>
-            </Pressable>
-
-            <Pressable
-              style={[styles.previewButton, { backgroundColor: colors.tertiary }]}
-              onPress={() => setShowLayersModal(true)}
-            >
-              <Layers size={16} color={colors.secondary} />
-              <Text style={[styles.previewButtonText, { color: colors.secondary }]}>Camadas</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.previewButton, { backgroundColor: linkedSpreadsheet ? colors.primaryLight : colors.tertiary }]}
-              onPress={() => setShowSpreadsheetModal(true)}
-            >
-              <Table size={16} color={linkedSpreadsheet ? colors.primary : colors.secondary} />
-              <Text
-                style={[styles.previewButtonText, { color: linkedSpreadsheet ? colors.primary : colors.secondary }]}
-                numberOfLines={1}
-              >
-                {linkedSpreadsheet ? linkedSpreadsheet.name : 'Vincular Planilha'}
-              </Text>
-            </Pressable>
           </View>
+
+          {(multiSelectMode || selectedFieldIds.length >= 2) && (
+            <View style={[styles.contextBar, { borderBottomColor: colors.border, backgroundColor: colors.background }]}> 
+              <View style={styles.contextInfo}>
+                <CheckSquare size={16} color={colors.primary} />
+                <Text style={[styles.contextTitle, { color: colors.neutral }]}>
+                  {multiSelectMode ? 'Seleção múltipla ativa' : 'Organizando seleção'}
+                </Text>
+                <Text style={[styles.contextSubtitle, { color: colors.secondary }]}>
+                  {selectedFieldIds.length} {selectedFieldIds.length === 1 ? 'campo selecionado' : 'campos selecionados'}
+                </Text>
+              </View>
+              {selectedFieldIds.length >= 2 && (
+                <Pressable style={[styles.contextButton, { backgroundColor: colors.primaryLight }]} onPress={() => setShowAlignModal(true)}>
+                  <AlignCenter size={16} color={colors.primary} />
+                  <Text style={[styles.contextButtonText, { color: colors.primary }]}>Alinhar</Text>
+                </Pressable>
+              )}
+              <Pressable style={[styles.contextButton, { backgroundColor: colors.tertiary }]} onPress={toggleMultiSelectMode}>
+                <Text style={[styles.contextButtonText, { color: colors.secondary }]}>{multiSelectMode ? 'Concluir' : 'Multi'}</Text>
+              </Pressable>
+            </View>
+          )}
 
           <ZoomablePdfView onScaleChange={setZoomScale}>
             <Pressable style={styles.pageWrapper} onPress={handleCanvasTap}>
@@ -427,6 +414,58 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
 
 
 
+
+
+      <Modal visible={showToolsMenu} transparent animationType="fade" onRequestClose={() => setShowToolsMenu(false)}>
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.menuBackdrop} onPress={() => setShowToolsMenu(false)} />
+          <View style={[styles.toolsMenuSheet, { backgroundColor: colors.white, paddingBottom: spacing.md + insets.bottom }]}> 
+            <Text style={[styles.modalTitle, { color: colors.neutral }]}>Ferramentas do editor</Text>
+            <Text style={[styles.menuSectionLabel, { color: colors.secondary }]}>FERRAMENTAS</Text>
+            <MenuItem icon={<Eye size={18} color={colors.primary} />} title="Ver prévia" onPress={() => openTool(() => setShowPreview(true))} colors={colors} />
+
+            <Text style={[styles.menuSectionLabel, { color: colors.secondary }]}>ORGANIZAR</Text>
+            <MenuItem
+              icon={<AlignCenter size={18} color={selectedFieldIds.length >= 2 ? colors.primary : colors.secondary} />}
+              title="Alinhar e distribuir"
+              subtitle={selectedFieldIds.length >= 2 ? `${selectedFieldIds.length} campos selecionados` : 'Selecione 2 ou mais campos'}
+              disabled={selectedFieldIds.length < 2}
+              onPress={() => openTool(() => setShowAlignModal(true))}
+              colors={colors}
+            />
+            <MenuItem
+              icon={<CheckSquare size={18} color={multiSelectMode ? colors.primary : colors.secondary} />}
+              title={multiSelectMode ? 'Concluir seleção múltipla' : 'Ativar seleção múltipla'}
+              subtitle={multiSelectMode ? `${selectedFieldIds.length} selecionados` : 'Modo para selecionar vários campos'}
+              active={multiSelectMode}
+              onPress={() => openTool(toggleMultiSelectMode)}
+              colors={colors}
+            />
+            <MenuItem
+              icon={<Grid3X3 size={18} color={showGrid || snapToGrid ? colors.primary : colors.secondary} />}
+              title="Grade e Snap"
+              subtitle={snapToGrid ? `Snap ativo · ${gridSize}px` : showGrid ? 'Grade visível' : 'Configurar precisão'}
+              active={showGrid || snapToGrid}
+              onPress={() => openTool(() => setShowGridModal(true))}
+              colors={colors}
+            />
+            <MenuItem icon={<Layers size={18} color={colors.secondary} />} title="Camadas" subtitle="Ocultar, bloquear e reordenar campos" onPress={() => openTool(() => setShowLayersModal(true))} colors={colors} />
+
+            <Text style={[styles.menuSectionLabel, { color: colors.secondary }]}>DADOS</Text>
+            <MenuItem
+              icon={<Table size={18} color={linkedSpreadsheet ? colors.primary : colors.secondary} />}
+              title="Vincular planilha"
+              subtitle={linkedSpreadsheet ? linkedSpreadsheet.name : 'Criar ou editar vínculo de dados'}
+              active={!!linkedSpreadsheet}
+              onPress={() => openTool(() => setShowSpreadsheetModal(true))}
+              colors={colors}
+            />
+
+            <Text style={[styles.menuSectionLabel, { color: colors.secondary }]}>AJUDA</Text>
+            <MenuItem icon={<HelpCircle size={18} color={colors.secondary} />} title="Tutorial" subtitle="Rever ajuda do editor" onPress={() => openTool(() => setManualTutorial(true))} colors={colors} />
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={showLayersModal} transparent animationType="slide" onRequestClose={() => setShowLayersModal(false)}>
         <View style={styles.modalOverlay}>
@@ -608,6 +647,35 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
   );
 }
 
+
+function MenuItem({ icon, title, subtitle, active, disabled, onPress, colors }: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  active?: boolean;
+  disabled?: boolean;
+  onPress: () => void;
+  colors: any;
+}) {
+  return (
+    <Pressable
+      style={[
+        styles.menuItem,
+        { borderColor: active ? colors.primary : colors.border, backgroundColor: active ? colors.primaryLight : colors.white },
+        disabled && styles.menuItemDisabled,
+      ]}
+      disabled={disabled}
+      onPress={onPress}
+    >
+      <View style={[styles.menuItemIcon, { backgroundColor: active ? colors.white : colors.tertiary }]}>{icon}</View>
+      <View style={styles.menuItemTextWrap}>
+        <Text style={[styles.menuItemTitle, { color: disabled ? colors.secondary : colors.neutral }]}>{title}</Text>
+        {!!subtitle && <Text style={[styles.menuItemSubtitle, { color: colors.secondary }]} numberOfLines={1}>{subtitle}</Text>}
+      </View>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { flex: 1 },
   toolbarMinimal: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
@@ -624,10 +692,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderBottomWidth: 1,
   },
-  toolbarAction: { fontSize: typography.body },
+  toolbarAction: { fontSize: typography.label },
   toolbarSave: { fontWeight: '700' },
-  titlePressable: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, justifyContent: 'center' },
-  toolbarTitle: { fontSize: typography.body, fontWeight: '600', maxWidth: 180 },
+  titlePressable: { flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1, minWidth: 0, justifyContent: 'center' },
+  toolbarTitle: { fontSize: typography.body, fontWeight: '600', maxWidth: 150 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
+  headerIconButton: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  saveButtonCompact: { minHeight: 40, justifyContent: 'center', paddingHorizontal: spacing.xs },
+  contextBar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderBottomWidth: 1 },
+  contextInfo: { flex: 1, minWidth: 0 },
+  contextTitle: { fontSize: typography.label, fontWeight: '800' },
+  contextSubtitle: { fontSize: typography.label },
+  contextButton: { minHeight: 36, borderRadius: radius.full, paddingHorizontal: spacing.sm, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
+  contextButtonText: { fontSize: typography.label, fontWeight: '800' },
   previewButtonRow: { flexDirection: 'row', gap: spacing.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, alignItems: 'flex-start', flexWrap: 'wrap' },
   previewButton: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -639,6 +716,15 @@ const styles = StyleSheet.create({
   historyButtonDisabled: { opacity: 0.45 },
   pageWrapper: { alignItems: 'center', justifyContent: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
+  menuBackdrop: { ...StyleSheet.absoluteFillObject },
+  toolsMenuSheet: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md, maxHeight: '86%' },
+  menuSectionLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.8, marginTop: spacing.sm, marginBottom: spacing.xs },
+  menuItem: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: 1, borderRadius: radius.md, padding: spacing.sm, marginBottom: spacing.xs },
+  menuItemDisabled: { opacity: 0.45 },
+  menuItemIcon: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  menuItemTextWrap: { flex: 1, minWidth: 0 },
+  menuItemTitle: { fontSize: typography.body, fontWeight: '700' },
+  menuItemSubtitle: { fontSize: typography.label, marginTop: 2 },
   modalSheet: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md, maxHeight: '70%' },
   modalTitle: { fontSize: typography.body, fontWeight: '700', marginBottom: spacing.md },
   nameInput: { borderWidth: 1, borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.md },
