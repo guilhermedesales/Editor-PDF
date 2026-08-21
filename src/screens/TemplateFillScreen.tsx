@@ -13,13 +13,15 @@ import * as Sharing from 'expo-sharing';
 import { ArrowLeft, Table } from 'lucide-react-native';
 import { spacing, radius, typography } from '../constants/theme';
 import { useThemeStore } from '../store/useThemeStore';
+import { useTemplateFillStore } from '../store/useTemplateFillStore';
 import { getTemplateById, saveTemplate } from '../services/templateStorage';
 import { getSpreadsheetByTemplateId, appendSpreadsheetRow, type SpreadsheetEntry } from '../services/spreadsheetsStorage';
 import { currencyToWords, plainNumberToWords } from '../utils/numberToWords';
 import { applyMaskFor, maskFullDate, maskDayOrMonth, maskYear } from '../utils/masks';
-import { DEFAULT_DATE_CONFIG, formatDateValue, placeholderForDateConfig } from '../utils/dateFormat';
+import { DEFAULT_DATE_CONFIG, MONTH_OPTIONS, formatDateValue, placeholderForDateConfig, rawValueFromDate } from '../utils/dateFormat';
 import type { Template, TemplateField } from '../types/template';
 import { DEFAULT_AUTO_INCREMENT_CONFIG, formatAutoIncrement, nextAutoIncrementNumber } from '../utils/autoIncrement';
+import { resolveCalculatedField } from '../utils/calculatedFields';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -39,6 +41,24 @@ function keyboardTypeFor(type: TemplateField['type']) {
 
 function sanitizeFileName(name: string) {
   return name.trim().replace(/[\\/:*?"<>|]/g, '').slice(0, 80) || 'documento';
+}
+
+function initialValuesForTemplate(template: Template, existingValues: Record<string, string> = {}): Record<string, string> {
+  const defaults: Record<string, string> = {};
+  template.fields.forEach((field) => {
+    if (field.type === 'textoFixo') {
+      defaults[field.id] = field.defaultText ?? '';
+    }
+    if (field.type === 'autoIncremento') {
+      const config = field.autoIncrementConfig ?? DEFAULT_AUTO_INCREMENT_CONFIG;
+      const nextRaw = nextAutoIncrementNumber(template, config);
+      defaults[field.id] = formatAutoIncrement(nextRaw, config);
+    }
+    if (field.type === 'data' && field.dateConfig?.auto) {
+      defaults[field.id] = rawValueFromDate(field.dateConfig);
+    }
+  });
+  return { ...defaults, ...existingValues };
 }
 
 // Aplica a máscara certa conforme o tipo, enquanto o usuário digita.
@@ -65,6 +85,7 @@ function placeholderForField(field: TemplateField): string {
     case 'valorPorExtenso': return 'Ex: 150,00';
     case 'numeroPorExtenso': return 'Ex: 10';
     case 'telefone': return '(00) 00000-0000';
+    case 'textoFixo': return field.defaultText || 'Texto fixo';
     case 'data': return placeholderForDateConfig(field.dateConfig ?? DEFAULT_DATE_CONFIG);
     default: return '';
   }
@@ -78,6 +99,8 @@ function resolveFinalValue(
   values: Record<string, string>,
   allFields: TemplateField[]
 ): string {
+  if (field.type === 'textoFixo') return values[field.id] ?? field.defaultText ?? '';
+  if (field.type === 'calculado') return resolveCalculatedField(field, values, allFields);
   if (field.type === 'valorPorExtenso') {
     if (field.linkedValorFieldId) {
       const linked = allFields.find((f) => f.id === field.linkedValorFieldId);
@@ -105,6 +128,8 @@ export default function TemplateFillScreen({ route, navigation }: any) {
   const { colors } = useThemeStore();
   const viewShotRef = useRef<ViewShot>(null);
 
+  const { loadSession, setValues: persistValues, patchValue: persistValue, setFileName: persistFileName, clearSession } = useTemplateFillStore();
+
   const [template, setTemplate] = useState<Template | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
   const [fileName, setFileName] = useState('');
@@ -112,37 +137,48 @@ export default function TemplateFillScreen({ route, navigation }: any) {
   const [generating, setGenerating] = useState(false);
   const [linkedSpreadsheet, setLinkedSpreadsheet] = useState<SpreadsheetEntry | null>(null);
   const [saveToSpreadsheet, setSaveToSpreadsheet] = useState(true);
+  const [monthPickerFieldId, setMonthPickerFieldId] = useState<string | null>(null);
 
   useEffect(() => {
-    getTemplateById(templateId).then((t) => {
+    getTemplateById(templateId).then(async (t) => {
       if (t) {
-        setTemplate(t);
-        setFileName(t.name);
+        const session = await loadSession(templateId);
+        const defaultValues = initialValuesForTemplate(t);
+        const startFresh = () => {
+          setTemplate(t);
+          setValues(defaultValues);
+          persistValues(t.id, defaultValues);
+          setFileName(t.name);
+        };
+        const continueDraft = () => {
+          const nextValues = initialValuesForTemplate(t, session?.values);
+          setTemplate(t);
+          setValues(nextValues);
+          persistValues(t.id, nextValues);
+          setFileName(session?.fileName ?? t.name);
+        };
+        if (session?.updatedAt && Object.keys(session.values ?? {}).length > 0) {
+          Alert.alert(
+            'Preenchimento em andamento',
+            `Última alteração: ${new Date(session.updatedAt).toLocaleString('pt-BR')}`,
+            [
+              { text: 'Começar novamente', style: 'destructive', onPress: async () => { await clearSession(t.id); startFresh(); } },
+              { text: 'Continuar', onPress: continueDraft },
+            ]
+          );
+        } else {
+          continueDraft();
+        }
       } else {
         Alert.alert('Template não encontrado');
         navigation.goBack();
       }
     });
-  }, [templateId]);
+  }, [templateId, loadSession, persistValues, clearSession]);
 
   useEffect(() => {
     getSpreadsheetByTemplateId(templateId).then((s) => setLinkedSpreadsheet(s ?? null));
   }, [templateId]);
-
-  useEffect(() => {
-    if (!template) return;
-    const autoValues: Record<string, string> = {};
-    template.fields.forEach((f) => {
-      if (f.type === 'autoIncremento') {
-        const config = f.autoIncrementConfig ?? DEFAULT_AUTO_INCREMENT_CONFIG;
-        const nextRaw = nextAutoIncrementNumber(template, config);
-        autoValues[f.id] = formatAutoIncrement(nextRaw, config);
-      }
-    });
-    if (Object.keys(autoValues).length > 0) {
-      setValues((prev) => ({ ...autoValues, ...prev }));
-    }
-  }, [template]);
 
   if (!template) {
     return (
@@ -158,6 +194,71 @@ export default function TemplateFillScreen({ route, navigation }: any) {
 
   function setValue(fieldId: string, text: string) {
     setValues((prev) => ({ ...prev, [fieldId]: text }));
+    persistValue(templateId, fieldId, text);
+  }
+
+  function setDatePart(field: TemplateField, part: 'dia' | 'mes' | 'ano', text: string) {
+    const cfg = field.dateConfig ?? DEFAULT_DATE_CONFIG;
+    if (cfg.parts.length !== 3) {
+      setValue(field.id, part === 'ano' ? maskYear(text) : maskDayOrMonth(text));
+      return;
+    }
+    const [day = '', month = '', year = ''] = (values[field.id] ?? '').split('/');
+    const next = { dia: day, mes: month, ano: year, [part]: part === 'ano' ? maskYear(text) : maskDayOrMonth(text) };
+    setValue(field.id, `${next.dia}/${next.mes}/${next.ano}`);
+  }
+
+  function renderDateInput(field: TemplateField) {
+    const cfg = field.dateConfig ?? DEFAULT_DATE_CONFIG;
+    const rawValue = values[field.id] ?? '';
+    const [day = '', month = '', year = ''] = rawValue.split('/');
+    const selectedMonth = cfg.parts.length === 3 ? month : rawValue;
+    const selectedMonthLabel = selectedMonth ? formatDateValue({ ...cfg, parts: ['mes'], auto: false }, selectedMonth) : 'Selecionar mês';
+
+    if (cfg.parts.length === 3) {
+      return (
+        <View style={styles.dateRow}>
+          <TextInput
+            style={[styles.formInput, styles.datePartInput, { borderColor: colors.border, color: colors.neutral }]}
+            value={day}
+            onChangeText={(t) => setDatePart(field, 'dia', t)}
+            placeholder="DD"
+            placeholderTextColor={colors.secondary}
+            keyboardType="numeric"
+          />
+          <Pressable style={[styles.monthSelect, { borderColor: colors.border }]} onPress={() => setMonthPickerFieldId(field.id)}>
+            <Text style={[styles.monthSelectText, { color: selectedMonth ? colors.neutral : colors.secondary }]}>{selectedMonthLabel}</Text>
+          </Pressable>
+          <TextInput
+            style={[styles.formInput, styles.yearPartInput, { borderColor: colors.border, color: colors.neutral }]}
+            value={year}
+            onChangeText={(t) => setDatePart(field, 'ano', t)}
+            placeholder="AAAA"
+            placeholderTextColor={colors.secondary}
+            keyboardType="numeric"
+          />
+        </View>
+      );
+    }
+
+    if (cfg.parts[0] === 'mes') {
+      return (
+        <Pressable style={[styles.formInput, styles.monthOnlySelect, { borderColor: colors.border }]} onPress={() => setMonthPickerFieldId(field.id)}>
+          <Text style={{ color: rawValue ? colors.neutral : colors.secondary }}>{rawValue ? selectedMonthLabel : placeholderForField(field)}</Text>
+        </Pressable>
+      );
+    }
+
+    return (
+      <TextInput
+        style={[styles.formInput, { borderColor: colors.border, color: colors.neutral }]}
+        value={rawValue}
+        onChangeText={(t) => setValue(field.id, maskForField(field, t))}
+        placeholder={placeholderForField(field)}
+        placeholderTextColor={colors.secondary}
+        keyboardType="numeric"
+      />
+    );
   }
 
   // Monta a linha que vai pra planilha, respeitando a config de
@@ -221,6 +322,17 @@ export default function TemplateFillScreen({ route, navigation }: any) {
       } else {
         Alert.alert('PDF gerado', `Salvo em: ${outFile.uri}`);
       }
+
+      Alert.alert('Documento gerado com sucesso', 'Deseja iniciar um novo preenchimento ou continuar com estes dados?', [
+        { text: 'Continuar com estes dados' },
+        { text: 'Novo preenchimento', onPress: async () => {
+          await clearSession(templateId);
+          const defaults = initialValuesForTemplate(template!);
+          setValues(defaults);
+          persistValues(templateId, defaults);
+          setFileName(template!.name);
+        } },
+      ]);
     } catch (err: any) {
       Alert.alert('Erro ao gerar PDF', String(err?.message ?? err));
     } finally {
@@ -240,11 +352,11 @@ export default function TemplateFillScreen({ route, navigation }: any) {
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl }}>
+      <ScrollView contentContainerStyle={{ paddingBottom: spacing.xl + insets.bottom }}>
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: colors.neutral }]}>Dados do Documento</Text>
           {template.fields.map((field) => {
-            const isReadOnly = field.type === 'autoIncremento' || (field.type === 'data' && field.dateConfig?.auto);
+            const isReadOnly = field.type === 'autoIncremento' || field.type === 'calculado';
             const isDerivedExtenso = field.type === 'valorPorExtenso' && !!field.linkedValorFieldId;
 
             return (
@@ -259,7 +371,7 @@ export default function TemplateFillScreen({ route, navigation }: any) {
                     <Text style={[styles.autoValue, { color: colors.neutral }]}>
                       {resolveFinalValue(field, values, template.fields) || (field.type === 'autoIncremento' ? values[field.id] : '')}
                     </Text>
-                    <Text style={[styles.autoTag, { color: colors.primary, backgroundColor: colors.primaryLight }]}>Automático</Text>
+                    <Text style={[styles.autoTag, { color: colors.primary, backgroundColor: colors.primaryLight }]}>{field.type === 'calculado' ? 'Calculado' : 'Automático'}</Text>
                   </View>
                 ) : isDerivedExtenso ? (
                   <View style={[styles.autoBox, { borderColor: colors.border, backgroundColor: colors.tertiary }]}>
@@ -270,11 +382,12 @@ export default function TemplateFillScreen({ route, navigation }: any) {
                   </View>
                 ) : (
                   <>
+                    {field.type === 'data' ? renderDateInput(field) : (
                     <TextInput
                       style={[
                         styles.formInput,
                         { borderColor: colors.border, color: colors.neutral },
-                        field.type === 'textoMultilinha' && styles.formInputMultiline,
+                        (field.type === 'textoMultilinha') && styles.formInputMultiline,
                       ]}
                       value={values[field.id] ?? ''}
                       onChangeText={(t) => setValue(field.id, maskForField(field, t))}
@@ -284,6 +397,7 @@ export default function TemplateFillScreen({ route, navigation }: any) {
                       multiline={field.type === 'textoMultilinha'}
                       numberOfLines={field.type === 'textoMultilinha' ? 4 : 1}
                     />
+                    )}
                     {(field.type === 'valorPorExtenso' || field.type === 'numeroPorExtenso') &&
                       !!values[field.id] && (
                         <Text style={[styles.extensoPreview, { color: colors.primary }]} numberOfLines={2}>
@@ -330,13 +444,13 @@ export default function TemplateFillScreen({ route, navigation }: any) {
 
       <Modal visible={showNameModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: colors.white }]}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.white, paddingBottom: spacing.md + insets.bottom }]}>
             <Text style={[styles.modalTitle, { color: colors.neutral }]}>Nome do Arquivo</Text>
             <TextInput
               autoFocus
               style={[styles.nameInput, { borderColor: colors.border, color: colors.neutral }]}
               value={fileName}
-              onChangeText={setFileName}
+              onChangeText={(text) => { setFileName(text); persistFileName(templateId, text); }}
               placeholder="Ex: Contrato João da Silva"
               placeholderTextColor={colors.secondary}
             />
@@ -363,6 +477,28 @@ export default function TemplateFillScreen({ route, navigation }: any) {
             <Pressable onPress={() => setShowNameModal(false)}>
               <Text style={[styles.modalCancel, { color: colors.secondary }]}>Cancelar</Text>
             </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+
+      <Modal visible={!!monthPickerFieldId} transparent animationType="fade" onRequestClose={() => setMonthPickerFieldId(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.white, paddingBottom: spacing.md + insets.bottom }]}> 
+            <Text style={[styles.modalTitle, { color: colors.neutral }]}>Selecionar mês</Text>
+            {MONTH_OPTIONS.map((month) => (
+              <Pressable
+                key={month.value}
+                style={[styles.monthOption, { borderBottomColor: colors.border }]}
+                onPress={() => {
+                  const field = template.fields.find((f) => f.id === monthPickerFieldId);
+                  if (field) setDatePart(field, 'mes', month.value);
+                  setMonthPickerFieldId(null);
+                }}
+              >
+                <Text style={[styles.monthOptionText, { color: colors.neutral }]}>{month.label}</Text>
+              </Pressable>
+            ))}
           </View>
         </View>
       </Modal>
@@ -397,6 +533,12 @@ const styles = StyleSheet.create({
   required: {},
   formInput: { borderWidth: 1, borderRadius: radius.sm, padding: spacing.sm, fontSize: typography.body },
   formInputMultiline: { minHeight: 90, textAlignVertical: 'top' },
+  dateRow: { flexDirection: 'row', gap: spacing.xs },
+  datePartInput: { flex: 0.8 },
+  yearPartInput: { flex: 1 },
+  monthSelect: { flex: 1.4, borderWidth: 1, borderRadius: radius.sm, padding: spacing.sm, justifyContent: 'center' },
+  monthOnlySelect: { justifyContent: 'center' },
+  monthSelectText: { fontSize: typography.body },
   extensoPreview: { fontSize: typography.label, fontStyle: 'italic', marginTop: spacing.xs, paddingHorizontal: 2 },
   autoBox: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -408,12 +550,14 @@ const styles = StyleSheet.create({
   },
   previewWrapper: { alignItems: 'center', paddingHorizontal: spacing.md, marginTop: spacing.sm },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  modalSheet: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md },
+  modalSheet: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md, paddingBottom: spacing.md },
   modalTitle: { fontSize: typography.body, fontWeight: '700', marginBottom: spacing.md },
   nameInput: { borderWidth: 1, borderRadius: radius.sm, padding: spacing.sm, marginBottom: spacing.md },
   spreadsheetCheckRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginBottom: spacing.md },
   checkbox: { width: 18, height: 18, borderRadius: 4, borderWidth: 2 },
   spreadsheetCheckText: { flex: 1, fontSize: typography.label, fontWeight: '600' },
+  monthOption: { paddingVertical: spacing.sm, borderBottomWidth: 1 },
+  monthOptionText: { fontSize: typography.body, textTransform: 'capitalize' },
   confirmButton: { paddingVertical: spacing.md, borderRadius: radius.md, alignItems: 'center' },
   confirmButtonText: { color: '#fff', fontWeight: '700' },
   modalCancel: { textAlign: 'center', marginTop: spacing.sm, paddingVertical: spacing.sm },

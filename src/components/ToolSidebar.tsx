@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Pressable, StyleSheet } from 'react-native';
+import { ScrollView, View, Pressable, StyleSheet, Text } from 'react-native';
 import { Plus, Move, Maximize2, Pencil, Trash2 } from 'lucide-react-native';
 import { radius, spacing } from '../constants/theme';
 import { useThemeStore } from '../store/useThemeStore';
@@ -24,29 +24,44 @@ export default function ToolSidebar({ active, onChange }: Props) {
   const { colors } = useThemeStore();
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.white }]}>
-      {TOOLS.map(({ tool, Icon }) => {
+    <View style={[styles.container, { backgroundColor: colors.white, borderTopColor: colors.border }]}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+      >
+      {TOOLS.map(({ tool, Icon, label }) => {
         const isActive = active === tool;
         const isDelete = tool === 'delete';
         return (
           <Pressable
             key={tool}
-            style={[styles.button, isActive && { backgroundColor: isDelete ? '#FEE2E2' : colors.primary }]}
+            style={[styles.button, { borderColor: colors.border }, isActive && { backgroundColor: isDelete ? '#FEE2E2' : colors.primary, borderColor: isDelete ? '#FEE2E2' : colors.primary }]}
             onPress={() => onChange(tool)}
           >
             <Icon size={20} color={isActive && !isDelete ? colors.white : isDelete ? colors.danger : colors.neutral} />
+            <Text style={[styles.label, { color: isActive && !isDelete ? colors.white : isDelete ? colors.danger : colors.neutral }]} numberOfLines={1}>
+              {label}
+            </Text>
           </Pressable>
         );
       })}
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    position: 'absolute', right: spacing.sm, top: '50%', marginTop: -110,
-    borderRadius: radius.lg, padding: 6, gap: 6, elevation: 5,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 6, zIndex: 20,
+    borderTopWidth: 1,
+    paddingVertical: spacing.xs,
+    elevation: 5,
+    shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.08, shadowRadius: 6,
   },
-  button: { width: 40, height: 40, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  content: { paddingHorizontal: spacing.md, gap: spacing.sm },
+  button: {
+    minWidth: 76, height: 52, borderRadius: radius.md, borderWidth: 1,
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.sm, gap: 2,
+  },
+  label: { fontSize: 10, fontWeight: '700' },
 });

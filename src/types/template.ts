@@ -2,6 +2,7 @@
 
 export type FieldType =
   | 'texto'
+  | 'textoFixo'
   | 'numero'
   | 'valor'
   | 'valorPorExtenso'
@@ -12,7 +13,8 @@ export type FieldType =
   | 'cpf'
   | 'cnpj'
   | 'telefone'
-  | 'textoMultilinha';
+  | 'textoMultilinha'
+  | 'calculado';
 
 export interface FieldPosition {
   x: number;
@@ -33,6 +35,7 @@ export interface FieldStyle {
 export interface DateConfig {
   parts: Array<'dia' | 'mes' | 'ano'>;
   monthFormat: 'numero' | 'nome' | 'abreviado';
+  yearFormat?: 'completo' | 'doisDigitos';
   auto: boolean;
 }
 
@@ -48,6 +51,13 @@ export interface AutoIncrementConfig {
   startAt: number;
 }
 
+export interface CalculationConfig {
+  leftFieldId?: string | null;
+  operation: 'soma' | 'subtracao' | 'multiplicacao' | 'divisao' | 'porcentagem';
+  rightFieldId?: string | null;
+  format: 'numero' | 'moeda' | 'porcentagem';
+}
+
 export interface TemplateField {
   id: string;
   internalName: string;
@@ -56,11 +66,16 @@ export interface TemplateField {
   style: FieldStyle;
   required: boolean;
   placeholder?: string;
+  defaultText?: string;
   maxLines?: number;
   dateConfig?: DateConfig;
   valorConfig?: ValorConfig;
   linkedValorFieldId?: string | null;
   autoIncrementConfig?: AutoIncrementConfig;
+  hidden?: boolean;
+  locked?: boolean;
+  zIndex?: number;
+  calculationConfig?: CalculationConfig;
 }
 
 export interface Template {

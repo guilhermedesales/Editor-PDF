@@ -7,11 +7,14 @@ import FilesScreen from '../screens/FileScreen';
 import ToolsScreen from '../screens/ToolsScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import { useThemeStore } from '../store/useThemeStore';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { spacing } from '../constants/theme';
 
 const Tab = createBottomTabNavigator();
 
 export default function BottomTabs() {
   const { colors } = useThemeStore();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
@@ -19,7 +22,13 @@ export default function BottomTabs() {
         headerShown: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.secondary,
-        tabBarStyle: { backgroundColor: colors.white, borderTopColor: colors.border },
+        tabBarStyle: {
+          backgroundColor: colors.white,
+          borderTopColor: colors.border,
+          height: 58 + insets.bottom,
+          paddingBottom: Math.max(insets.bottom, spacing.xs),
+          paddingTop: spacing.xs,
+        },
       }}
     >
       <Tab.Screen name="HomeTab" component={HomeScreen} options={{ title: 'Home', tabBarIcon: ({ color, size }) => <Home color={color} size={size} /> }} />
