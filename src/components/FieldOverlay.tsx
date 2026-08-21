@@ -16,6 +16,7 @@ interface Props {
   onDelete: () => void;
   onMove: (dx: number, dy: number) => void;
   onResize: (dw: number, dh: number, dx: number, dy: number) => void;
+  locked?: boolean;
 }
 
 type Mode = 'move' | 'tl' | 'tr' | 'bl' | 'br';
@@ -27,7 +28,7 @@ const HANDLE_SIZE = 20;
 const FIELD_RADIUS = 4;
 
 export default function FieldOverlay(props: Props) {
-  const { field, scale, zoomScale, selected, tool, onSelect, onEdit, onDelete, onMove, onResize } = props;
+  const { field, scale, zoomScale, selected, tool, onSelect, onEdit, onDelete, onMove, onResize, locked } = props;
   const { colors } = useThemeStore();
 
   const fieldRef = useRef(field);
@@ -50,6 +51,8 @@ export default function FieldOverlay(props: Props) {
     const f = fieldRef.current;
     const effectiveScale = scaleRef.current * zoomScaleRef.current;
     const { onSelect, onMove, onResize } = callbacksRef.current;
+
+    if (locked) { setDrag(null); return; }
 
     if (mode === 'move') {
       const movedEnough = Math.abs(dxScreen) > TAP_MAX_MOVEMENT || Math.abs(dyScreen) > TAP_MAX_MOVEMENT;
@@ -91,17 +94,17 @@ export default function FieldOverlay(props: Props) {
         onStartShouldSetPanResponder: () => {
           const t = toolRef.current;
           if (mode === 'move') return t === 'move' || t === 'resize' || t === 'edit' || t === 'delete';
-          return t === 'resize';
+          return t === 'resize' && !fieldRef.current.locked;
         },
         onStartShouldSetPanResponderCapture: () => mode !== 'move',
         onMoveShouldSetPanResponder: (_e, g) => {
           const t = toolRef.current;
           const moved = Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2;
-          if (mode === 'move') return t === 'move' && moved;
-          return t === 'resize' && moved;
+          if (mode === 'move') return t === 'move' && moved && !fieldRef.current.locked;
+          return t === 'resize' && moved && !fieldRef.current.locked;
         },
         onMoveShouldSetPanResponderCapture: (_e, g) =>
-          mode !== 'move' && toolRef.current === 'resize' && (Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2),
+          mode !== 'move' && !fieldRef.current.locked && toolRef.current === 'resize' && (Math.abs(g.dx) > 2 || Math.abs(g.dy) > 2),
         onPanResponderTerminationRequest: () => false,
         onPanResponderGrant: () => {},
         onPanResponderMove: (_e, g) => {
@@ -175,7 +178,7 @@ export default function FieldOverlay(props: Props) {
 
   const handleVisualSize = HANDLE_SIZE / safeZoom;
   const handleHalf = handleVisualSize / 2;
-  const showHandles = tool === 'resize' && selected;
+  const showHandles = tool === 'resize' && selected && !locked;
 
   return (
     <React.Fragment>
@@ -186,7 +189,7 @@ export default function FieldOverlay(props: Props) {
           {
             left, top, width, height,
             borderColor: selected ? colors.primary : colors.primaryLight,
-            backgroundColor: selected ? 'rgba(37, 99, 235, 0.14)' : 'rgba(37, 99, 235, 0.08)',
+            backgroundColor: locked ? 'rgba(107, 114, 128, 0.12)' : selected ? 'rgba(37, 99, 235, 0.14)' : 'rgba(37, 99, 235, 0.08)',
           },
         ]}
       >

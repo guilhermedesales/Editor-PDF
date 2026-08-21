@@ -29,6 +29,7 @@ export const FIELD_TYPE_OPTIONS: FieldTypeOption[] = [
   { type: 'textoFixo', label: 'Texto Fixo', description: 'Editável no preenchimento', icon: Type },
   { type: 'textoMultilinha', label: 'Texto Multilinha', description: 'Parágrafos', icon: AlignLeft },
   { type: 'numero', label: 'Número', description: 'Ex: 10', icon: Hash },
+  { type: 'calculado', label: 'Campo Calculado', description: 'Ex: total automático', icon: Hash },
   { type: 'valor', label: 'Valor (R$)', description: 'Ex: R$ 150,00', icon: DollarSign },
   { type: 'valorPorExtenso', label: 'Valor por Extenso', description: 'Ex: cento e cinquenta reais', icon: BookOpenText },
   { type: 'numeroPorExtenso', label: 'Número por Extenso', description: 'Ex: dez', icon: BookOpenText },

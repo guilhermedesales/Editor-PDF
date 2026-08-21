@@ -6,7 +6,7 @@ import { FIELD_TYPE_OPTIONS } from '../constants/fieldTypes';
 import { DEFAULT_DATE_CONFIG, formatDateValue } from '../utils/dateFormat';
 import { currencyToWords, plainNumberToWords } from '../utils/numberToWords';
 import { DEFAULT_AUTO_INCREMENT_CONFIG, formatAutoIncrement } from '../utils/autoIncrement';
-import type { TemplateField, FieldType, DateConfig, AutoIncrementConfig } from '../types/template';
+import type { TemplateField, FieldType, DateConfig, AutoIncrementConfig, CalculationConfig } from '../types/template';
 import { Trash2, Copy, AlignLeft, AlignCenter, AlignRight, Check, ChevronDown, X } from 'lucide-react-native';
 
 const COLOR_OPTIONS = ['#1C1B1B', '#2563EB', '#DC2626', '#059669', '#D97706', '#7C3AED'];
@@ -42,6 +42,7 @@ function samplePreview(field: TemplateField, allFields: TemplateField[]): string
       return currencyToWords('150,00');
     }
     case 'numeroPorExtenso': return plainNumberToWords('10');
+    case 'calculado': return 'Resultado automático';
     case 'autoIncremento': {
       const cfg = field.autoIncrementConfig ?? DEFAULT_AUTO_INCREMENT_CONFIG;
       return formatAutoIncrement(cfg.startAt, cfg);
@@ -98,6 +99,10 @@ export default function FieldEditorSheet({
 
   function updateAutoConfig(partial: Partial<AutoIncrementConfig>) {
     onUpdate({ autoIncrementConfig: { ...autoConfig, ...partial } });
+  }
+
+  function updateCalculationConfig(partial: Partial<CalculationConfig>) {
+    onUpdate({ calculationConfig: { operation: 'soma', format: 'numero', ...field!.calculationConfig, ...partial } });
   }
 
   const valorFieldsAvailable = allFields.filter((f) => f.type === 'valor' && f.id !== field.id);
@@ -190,6 +195,44 @@ export default function FieldEditorSheet({
                     updateAutoConfig({ startAt: isNaN(n) ? 1 : Math.max(n, 0) });
                   }}
                 />
+              </View>
+            )}
+
+            {field.type === 'calculado' && (
+              <View style={[styles.configBox, { backgroundColor: colors.tertiary }]}>
+                <Text style={[styles.configLabel, { color: colors.neutral }]}>Campo calculado</Text>
+                <Text style={[styles.configLabel, { color: colors.neutral }]}>Primeiro valor</Text>
+                <Dropdown colors={colors} value={allFields.find((f) => f.id === field.calculationConfig?.leftFieldId)?.internalName || 'Selecione'} open={showLinkMenu} onPress={() => setShowLinkMenu((v) => !v)}>
+                  {allFields.filter((f) => f.id !== field.id && f.type !== 'calculado').map((f) => (
+                    <Pressable key={f.id} style={[styles.dropdownItem, { borderBottomColor: colors.border }]} onPress={() => { updateCalculationConfig({ leftFieldId: f.id }); setShowLinkMenu(false); }}>
+                      <Text style={[styles.dropdownItemText, { color: colors.neutral }]}>{f.internalName || f.type}</Text>
+                    </Pressable>
+                  ))}
+                </Dropdown>
+                <Text style={[styles.configLabel, { color: colors.neutral, marginTop: spacing.sm }]}>Operação</Text>
+                <View style={styles.rowWrap}>
+                  {([['soma', '+'], ['subtracao', '−'], ['multiplicacao', '×'], ['divisao', '÷'], ['porcentagem', '% desc.']] as const).map(([value, label]) => (
+                    <Pressable key={value} style={[styles.pill, { backgroundColor: colors.white, borderColor: colors.border }, field.calculationConfig?.operation === value && { backgroundColor: colors.primary, borderColor: colors.primary }]} onPress={() => updateCalculationConfig({ operation: value })}>
+                      <Text style={[styles.pillText, { color: colors.neutral }, field.calculationConfig?.operation === value && { color: colors.white }]}>{label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={[styles.configLabel, { color: colors.neutral, marginTop: spacing.sm }]}>Segundo valor</Text>
+                <View style={styles.rowWrap}>
+                  {allFields.filter((f) => f.id !== field.id && f.type !== 'calculado').map((f) => (
+                    <Pressable key={f.id} style={[styles.pill, { backgroundColor: colors.white, borderColor: colors.border }, field.calculationConfig?.rightFieldId === f.id && { backgroundColor: colors.primary, borderColor: colors.primary }]} onPress={() => updateCalculationConfig({ rightFieldId: f.id })}>
+                      <Text style={[styles.pillText, { color: field.calculationConfig?.rightFieldId === f.id ? colors.white : colors.neutral }]}>{f.internalName || f.type}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={[styles.configLabel, { color: colors.neutral, marginTop: spacing.sm }]}>Formato</Text>
+                <View style={styles.rowWrap}>
+                  {([['numero', 'Número'], ['moeda', 'Moeda'], ['porcentagem', '%']] as const).map(([value, label]) => (
+                    <Pressable key={value} style={[styles.pill, { backgroundColor: colors.white, borderColor: colors.border }, field.calculationConfig?.format === value && { backgroundColor: colors.primary, borderColor: colors.primary }]} onPress={() => updateCalculationConfig({ format: value })}>
+                      <Text style={[styles.pillText, { color: field.calculationConfig?.format === value ? colors.white : colors.neutral }]}>{label}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
             )}
 

@@ -21,6 +21,7 @@ import { applyMaskFor, maskFullDate, maskDayOrMonth, maskYear } from '../utils/m
 import { DEFAULT_DATE_CONFIG, MONTH_OPTIONS, formatDateValue, placeholderForDateConfig, rawValueFromDate } from '../utils/dateFormat';
 import type { Template, TemplateField } from '../types/template';
 import { DEFAULT_AUTO_INCREMENT_CONFIG, formatAutoIncrement, nextAutoIncrementNumber } from '../utils/autoIncrement';
+import { resolveCalculatedField } from '../utils/calculatedFields';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -99,6 +100,7 @@ function resolveFinalValue(
   allFields: TemplateField[]
 ): string {
   if (field.type === 'textoFixo') return values[field.id] ?? field.defaultText ?? '';
+  if (field.type === 'calculado') return resolveCalculatedField(field, values, allFields);
   if (field.type === 'valorPorExtenso') {
     if (field.linkedValorFieldId) {
       const linked = allFields.find((f) => f.id === field.linkedValorFieldId);
@@ -126,7 +128,7 @@ export default function TemplateFillScreen({ route, navigation }: any) {
   const { colors } = useThemeStore();
   const viewShotRef = useRef<ViewShot>(null);
 
-  const { getSession, setValues: persistValues, patchValue: persistValue, setFileName: persistFileName } = useTemplateFillStore();
+  const { loadSession, setValues: persistValues, patchValue: persistValue, setFileName: persistFileName, clearSession } = useTemplateFillStore();
 
   const [template, setTemplate] = useState<Template | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -138,20 +140,41 @@ export default function TemplateFillScreen({ route, navigation }: any) {
   const [monthPickerFieldId, setMonthPickerFieldId] = useState<string | null>(null);
 
   useEffect(() => {
-    getTemplateById(templateId).then((t) => {
+    getTemplateById(templateId).then(async (t) => {
       if (t) {
-        const session = getSession(templateId);
-        const nextValues = initialValuesForTemplate(t, session?.values);
-        setTemplate(t);
-        setValues(nextValues);
-        persistValues(t.id, nextValues);
-        setFileName(session?.fileName ?? t.name);
+        const session = await loadSession(templateId);
+        const defaultValues = initialValuesForTemplate(t);
+        const startFresh = () => {
+          setTemplate(t);
+          setValues(defaultValues);
+          persistValues(t.id, defaultValues);
+          setFileName(t.name);
+        };
+        const continueDraft = () => {
+          const nextValues = initialValuesForTemplate(t, session?.values);
+          setTemplate(t);
+          setValues(nextValues);
+          persistValues(t.id, nextValues);
+          setFileName(session?.fileName ?? t.name);
+        };
+        if (session?.updatedAt && Object.keys(session.values ?? {}).length > 0) {
+          Alert.alert(
+            'Preenchimento em andamento',
+            `Última alteração: ${new Date(session.updatedAt).toLocaleString('pt-BR')}`,
+            [
+              { text: 'Começar novamente', style: 'destructive', onPress: async () => { await clearSession(t.id); startFresh(); } },
+              { text: 'Continuar', onPress: continueDraft },
+            ]
+          );
+        } else {
+          continueDraft();
+        }
       } else {
         Alert.alert('Template não encontrado');
         navigation.goBack();
       }
     });
-  }, [templateId, getSession, persistValues]);
+  }, [templateId, loadSession, persistValues, clearSession]);
 
   useEffect(() => {
     getSpreadsheetByTemplateId(templateId).then((s) => setLinkedSpreadsheet(s ?? null));
@@ -299,6 +322,17 @@ export default function TemplateFillScreen({ route, navigation }: any) {
       } else {
         Alert.alert('PDF gerado', `Salvo em: ${outFile.uri}`);
       }
+
+      Alert.alert('Documento gerado com sucesso', 'Deseja iniciar um novo preenchimento ou continuar com estes dados?', [
+        { text: 'Continuar com estes dados' },
+        { text: 'Novo preenchimento', onPress: async () => {
+          await clearSession(templateId);
+          const defaults = initialValuesForTemplate(template!);
+          setValues(defaults);
+          persistValues(templateId, defaults);
+          setFileName(template!.name);
+        } },
+      ]);
     } catch (err: any) {
       Alert.alert('Erro ao gerar PDF', String(err?.message ?? err));
     } finally {
@@ -322,7 +356,7 @@ export default function TemplateFillScreen({ route, navigation }: any) {
         <View style={styles.formSection}>
           <Text style={[styles.sectionTitle, { color: colors.neutral }]}>Dados do Documento</Text>
           {template.fields.map((field) => {
-            const isReadOnly = field.type === 'autoIncremento';
+            const isReadOnly = field.type === 'autoIncremento' || field.type === 'calculado';
             const isDerivedExtenso = field.type === 'valorPorExtenso' && !!field.linkedValorFieldId;
 
             return (
@@ -337,7 +371,7 @@ export default function TemplateFillScreen({ route, navigation }: any) {
                     <Text style={[styles.autoValue, { color: colors.neutral }]}>
                       {resolveFinalValue(field, values, template.fields) || (field.type === 'autoIncremento' ? values[field.id] : '')}
                     </Text>
-                    <Text style={[styles.autoTag, { color: colors.primary, backgroundColor: colors.primaryLight }]}>Automático</Text>
+                    <Text style={[styles.autoTag, { color: colors.primary, backgroundColor: colors.primaryLight }]}>{field.type === 'calculado' ? 'Calculado' : 'Automático'}</Text>
                   </View>
                 ) : isDerivedExtenso ? (
                   <View style={[styles.autoBox, { borderColor: colors.border, backgroundColor: colors.tertiary }]}>
