@@ -26,6 +26,7 @@ interface Props {
 
 function samplePreview(field: TemplateField, allFields: TemplateField[]): string {
   switch (field.type) {
+    case 'textoFixo': return field.defaultText || 'Texto fixo';
     case 'cpf': return '123.456.789-00';
     case 'cnpj': return '12.345.678/0001-00';
     case 'telefone': return '(21) 98765-4321';
@@ -137,6 +138,19 @@ export default function FieldEditorSheet({
               ))}
             </Dropdown>
 
+            {field.type === 'textoFixo' && (
+              <View style={[styles.configBox, { backgroundColor: colors.tertiary }]}>
+                <Text style={[styles.configLabel, { color: colors.neutral }]}>Texto inicial no template</Text>
+                <TextInput
+                  style={[styles.input, { borderColor: colors.border, color: colors.neutral }]}
+                  value={field.defaultText ?? ''}
+                  placeholder="Ex: Rio de Janeiro,"
+                  placeholderTextColor={colors.secondary}
+                  onChangeText={(text) => onUpdate({ defaultText: text })}
+                />
+              </View>
+            )}
+
             {field.type === 'valor' && (
               <View style={[styles.configBox, { backgroundColor: colors.tertiary }]}>
                 <Pressable
@@ -235,6 +249,26 @@ export default function FieldEditorSheet({
                           <Text style={[styles.pillText, { color: colors.neutral }, dateConfig.monthFormat === fmt && { color: colors.white }]}>
                             {fmt === 'numero' ? '02' : fmt === 'nome' ? 'Fevereiro' : 'Fev.'}
                           </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </>
+                )}
+
+                {dateConfig.parts.includes('ano') && (
+                  <>
+                    <Text style={[styles.configLabel, { color: colors.neutral, marginTop: spacing.sm }]}>Formato do ano</Text>
+                    <View style={styles.rowWrap}>
+                      {([
+                        { value: 'completo' as const, label: '2026' },
+                        { value: 'doisDigitos' as const, label: '26' },
+                      ]).map((option) => (
+                        <Pressable
+                          key={option.value}
+                          style={[styles.pill, { backgroundColor: colors.white, borderColor: colors.border }, (dateConfig.yearFormat ?? 'completo') === option.value && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                          onPress={() => updateDateConfig({ yearFormat: option.value })}
+                        >
+                          <Text style={[styles.pillText, { color: colors.neutral }, (dateConfig.yearFormat ?? 'completo') === option.value && { color: colors.white }]}>{option.label}</Text>
                         </Pressable>
                       ))}
                     </View>

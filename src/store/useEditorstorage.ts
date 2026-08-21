@@ -14,6 +14,8 @@ interface EditorState {
   pageHeight: number;
   fields: TemplateField[];
   selectedFieldId: string | null;
+  pastFields: TemplateField[][];
+  futureFields: TemplateField[][];
 
   setPdfSource: (uri: string, pageWidth: number, pageHeight: number) => void;
   setTemplateName: (name: string) => void;
@@ -22,6 +24,8 @@ interface EditorState {
   deleteField: (id: string) => void;
   selectField: (id: string | null) => void;
   loadFromTemplate: (templateId: string, name: string, pdfUri: string, pageWidth: number, pageHeight: number, fields: TemplateField[]) => void;
+  undo: () => void;
+  redo: () => void;
   reset: () => void;
 }
 
@@ -33,7 +37,22 @@ const initialState = {
   pageHeight: 0,
   fields: [],
   selectedFieldId: null,
+  pastFields: [],
+  futureFields: [],
 };
+
+function sameFields(a: TemplateField[], b: TemplateField[]) {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+function pushHistory(state: EditorState, nextFields: TemplateField[]) {
+  if (sameFields(state.fields, nextFields)) return { fields: state.fields };
+  return {
+    fields: nextFields,
+    pastFields: [...state.pastFields, state.fields].slice(-50),
+    futureFields: [],
+  };
+}
 
 export const useEditorStore = create<EditorState>((set) => ({
   ...initialState,
@@ -45,26 +64,48 @@ export const useEditorStore = create<EditorState>((set) => ({
 
   addField: (field) =>
     set((state) => ({
-      fields: [...state.fields, field],
+      ...pushHistory(state, [...state.fields, field]),
       selectedFieldId: field.id, // já seleciona o campo recém-criado,
                                   // pra abrir o painel de propriedades dele
     })),
 
   updateField: (id, patch) =>
-    set((state) => ({
-      fields: state.fields.map((f) => (f.id === id ? { ...f, ...patch } : f)),
-    })),
+    set((state) => pushHistory(state, state.fields.map((f) => (f.id === id ? { ...f, ...patch } : f)))),
 
   deleteField: (id: string) =>
     set((state) => ({
-        fields: state.fields.filter((f) => f.id !== id),
+        ...pushHistory(state, state.fields.filter((f) => f.id !== id)),
         selectedFieldId: state.selectedFieldId === id ? null : state.selectedFieldId,
     })),
 
   selectField: (id) => set({ selectedFieldId: id }),
 
   loadFromTemplate: (templateId, name, pdfUri, pageWidth, pageHeight, fields) =>
-    set({ templateId, templateName: name, pdfUri, pageWidth, pageHeight, fields }),
+    set({ templateId, templateName: name, pdfUri, pageWidth, pageHeight, fields, selectedFieldId: null, pastFields: [], futureFields: [] }),
+
+  undo: () =>
+    set((state) => {
+      const previous = state.pastFields[state.pastFields.length - 1];
+      if (!previous) return state;
+      return {
+        fields: previous,
+        pastFields: state.pastFields.slice(0, -1),
+        futureFields: [state.fields, ...state.futureFields],
+        selectedFieldId: previous.some((f) => f.id === state.selectedFieldId) ? state.selectedFieldId : null,
+      };
+    }),
+
+  redo: () =>
+    set((state) => {
+      const next = state.futureFields[0];
+      if (!next) return state;
+      return {
+        fields: next,
+        pastFields: [...state.pastFields, state.fields].slice(-50),
+        futureFields: state.futureFields.slice(1),
+        selectedFieldId: next.some((f) => f.id === state.selectedFieldId) ? state.selectedFieldId : null,
+      };
+    }),
 
   reset: () => set(initialState),
 }));

@@ -2,6 +2,7 @@
 
 export type FieldType =
   | 'texto'
+  | 'textoFixo'
   | 'numero'
   | 'valor'
   | 'valorPorExtenso'
@@ -33,6 +34,7 @@ export interface FieldStyle {
 export interface DateConfig {
   parts: Array<'dia' | 'mes' | 'ano'>;
   monthFormat: 'numero' | 'nome' | 'abreviado';
+  yearFormat?: 'completo' | 'doisDigitos';
   auto: boolean;
 }
 
@@ -56,6 +58,7 @@ export interface TemplateField {
   style: FieldStyle;
   required: boolean;
   placeholder?: string;
+  defaultText?: string;
   maxLines?: number;
   dateConfig?: DateConfig;
   valorConfig?: ValorConfig;

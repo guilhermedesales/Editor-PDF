@@ -26,6 +26,7 @@ export interface FieldTypeOption {
 
 export const FIELD_TYPE_OPTIONS: FieldTypeOption[] = [
   { type: 'texto', label: 'Texto', description: 'Linha única', icon: Type },
+  { type: 'textoFixo', label: 'Texto Fixo', description: 'Editável no preenchimento', icon: Type },
   { type: 'textoMultilinha', label: 'Texto Multilinha', description: 'Parágrafos', icon: AlignLeft },
   { type: 'numero', label: 'Número', description: 'Ex: 10', icon: Hash },
   { type: 'valor', label: 'Valor (R$)', description: 'Ex: R$ 150,00', icon: DollarSign },

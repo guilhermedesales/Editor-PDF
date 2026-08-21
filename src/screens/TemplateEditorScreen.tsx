@@ -21,7 +21,7 @@ import SpreadsheetLinkModal from '../components/SpreadsheetLinkModal';
 import { saveTemplate, getTemplateById } from '../services/templateStorage';
 import { getSpreadsheetByTemplateId, type SpreadsheetEntry } from '../services/spreadsheetsStorage';
 import type { FieldType, TemplateField } from '../types/template';
-import { Plus, ChevronLeft, FileText, Eye, Pencil, Table } from 'lucide-react-native';
+import { Plus, ChevronLeft, FileText, Eye, Pencil, Table, Undo2, Redo2 } from 'lucide-react-native';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -40,9 +40,9 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
   const [effectiveTemplateId] = useState(() => templateId ?? generateId());
 
   const {
-    pdfUri, pageWidth, pageHeight, fields, selectedFieldId, templateName,
+    pdfUri, pageWidth, pageHeight, fields, selectedFieldId, templateName, pastFields, futureFields,
     setPdfSource, setTemplateName, addField, updateField, deleteField,
-    selectField, loadFromTemplate, reset,
+    selectField, loadFromTemplate, reset, undo, redo,
   } = useEditorStore();
 
   const [pdfBase64, setPdfBase64] = useState<string | null>(null);
@@ -93,7 +93,8 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
       id: generateId(),
       internalName: '',
       type,
-      dateConfig: type === 'data' ? { parts: ['dia', 'mes', 'ano'], monthFormat: 'numero', auto: false } : undefined,
+      dateConfig: type === 'data' ? { parts: ['dia', 'mes', 'ano'], monthFormat: 'numero', yearFormat: 'completo', auto: false } : undefined,
+      defaultText: type === 'textoFixo' ? 'Texto fixo' : undefined,
       valorConfig: type === 'valor' ? { showSymbol: true } : undefined,
       linkedValorFieldId: type === 'valorPorExtenso' ? null : undefined,
       autoIncrementConfig: type === 'autoIncremento' ? { digits: 1, startAt: 1 } : undefined,
@@ -226,6 +227,23 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
               <Eye size={16} color={colors.primary} />
               <Text style={[styles.previewButtonText, { color: colors.primary }]}>Ver Prévia</Text>
             </Pressable>
+
+            <View style={styles.historyButtons}>
+              <Pressable
+                style={[styles.historyButton, { backgroundColor: colors.tertiary }, pastFields.length === 0 && styles.historyButtonDisabled]}
+                onPress={undo}
+                disabled={pastFields.length === 0}
+              >
+                <Undo2 size={16} color={pastFields.length === 0 ? colors.secondary : colors.primary} />
+              </Pressable>
+              <Pressable
+                style={[styles.historyButton, { backgroundColor: colors.tertiary }, futureFields.length === 0 && styles.historyButtonDisabled]}
+                onPress={redo}
+                disabled={futureFields.length === 0}
+              >
+                <Redo2 size={16} color={futureFields.length === 0 ? colors.secondary : colors.primary} />
+              </Pressable>
+            </View>
             <Pressable
               style={[styles.previewButton, { backgroundColor: linkedSpreadsheet ? colors.primaryLight : colors.tertiary }]}
               onPress={() => setShowSpreadsheetModal(true)}
@@ -265,7 +283,9 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
             </Pressable>
           </ZoomablePdfView>
 
-          <ToolSidebar active={tool} onChange={setTool} />
+          <View style={{ paddingBottom: insets.bottom }}>
+            <ToolSidebar active={tool} onChange={setTool} />
+          </View>
         </>
       )}
 
@@ -277,7 +297,7 @@ export default function TemplateEditorScreen({ route, navigation }: any) {
 
       <Modal visible={showNameModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalSheet, { backgroundColor: colors.white }]}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.white, paddingBottom: spacing.md + insets.bottom }]}>
             <Text style={[styles.modalTitle, { color: colors.neutral }]}>Nome do Template</Text>
             <TextInput
               autoFocus
@@ -368,6 +388,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radius.full, maxWidth: '60%',
   },
   previewButtonText: { fontWeight: '700', fontSize: typography.label },
+  historyButtons: { flexDirection: 'row', gap: spacing.xs, marginLeft: 'auto' },
+  historyButton: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  historyButtonDisabled: { opacity: 0.45 },
   pageWrapper: { alignItems: 'center', justifyContent: 'center' },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
   modalSheet: { borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, padding: spacing.md, maxHeight: '70%' },
